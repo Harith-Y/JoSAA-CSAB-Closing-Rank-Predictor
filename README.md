@@ -6,7 +6,7 @@ Predicts JoSAA and CSAB closing ranks for the upcoming counselling year using an
 
 Each unique seat slot (institute × programme × quota × seat type × gender) is modelled as a two-dimensional time series over years and rounds. The system outputs a full **R1–R6 closing-rank trajectory** for the target year, not just a single-round estimate.
 
-Key finding: JoSAA closing ranks are **mean-reverting**, not trending. The historical median outperforms all linear extrapolation methods by ~23% on average. SVR with an RBF kernel achieves the best single-year MAE (3,406 on 2024) through kernel-induced mean reversion.
+Key finding: JoSAA closing ranks are **mean-reverting**, not trending. The historical median outperforms all linear extrapolation methods by ~23% on average. A fixed-hyperparameter **GP RBF** model achieves the best average MAE (2,667 across 2022–2025) through Bayesian mean reversion, and is the deployed default for JoSAA. The **GP-MLP ensemble** is the deployed default for CSAB (MAE 42,318, a 15% improvement over GP RBF alone).
 
 ## Project Structure
 
@@ -38,6 +38,7 @@ JOSAA/
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install playwright scikit-learn pandas numpy streamlit plotly
+pip install torch --extra-index-url https://download.pytorch.org/whl/cpu  # for MLP / GP-MLP ensemble
 playwright install chromium      # only needed for scrapers
 ```
 
@@ -109,32 +110,39 @@ Opens in the browser. Select source, exam type, rank, quota, seat type, and gend
 | Match    | 0.80 × pred < rank ≤ pred |
 | Reach    | pred < rank ≤ 1.20 × pred (JoSAA) / 1.50 × (CSAB) |
 
-CSAB thresholds are wider because CSAB MAE (~50,000) is ~10× higher than JoSAA MAE (~3,761), reflecting the inherent unpredictability of residual seat allocation.
+CSAB thresholds are wider because CSAB MAE (~42,000 with the GP-MLP ensemble) is ~15× higher than JoSAA MAE (~2,880 with GP RBF), reflecting the inherent unpredictability of residual seat allocation.
 
 ## Trend Models
 
-Pass `--trend-model <name>` to `train`, `backtest`, or `tune`. Default: `median`.
+Pass `--trend-model <name>` to `train`, `backtest`, or `tune`.
+Deployed defaults: **`gp_rbf`** for JoSAA, **`mlp_ensemble`** for CSAB.
 
-| Model | 2024 MAE | Notes |
-|-------|----------|-------|
-| SVR RBF | **3,406** | Best single-year; kernel decay → mean reversion |
-| Median | 3,708 | Default; stable across 4 held-out years |
-| Ridge | 4,173 | Shrinks slope; better than OLS, worse than Median |
-| Weighted OLS | 4,984 | Recent years weighted ~10× more |
-| Theil–Sen | 5,017 | Robust to outlier years |
-| OLS | 5,028 | Baseline linear extrapolation |
-| SVR Linear | 4,767 | Similar to Ridge in this regime |
+| Model | Avg MAE 2022–2025 | Notes |
+|-------|-------------------|-------|
+| **GP RBF** | **2,667** | Deployed default (JoSAA); Bayesian mean reversion; numpy-only |
+| Global MLP | 2,676 | Tied with GP RBF; handles cold-start slots; requires PyTorch |
+| GP-MLP ensemble | - | Deployed default (CSAB); blends GP RBF + MLP; requires PyTorch |
+| AR(1) | 2,827 | Explicit mean-reversion; zero dependencies; `O(n)` fit |
+| AR(p) AICc | 3,153 | Higher-order AR; rarely justifies p>1 with ≤9 years |
+| SVR RBF | 2,742 | Kernel decay → mean reversion; scikit-learn only |
+| Median | 3,259 | Stable baseline; no extrapolation |
+| Ridge | - | Slope shrinkage; better than OLS, worse than Median |
+| Weighted OLS | - | Recent years weighted ~10× more |
+| Theil–Sen | - | Robust to single-year outliers |
+| OLS | - | Baseline linear extrapolation |
+| SVR Linear | - | Similar to Ridge in this regime |
 
-## Backtesting Results (JoSAA, median model)
+## Backtesting Results (JoSAA, w = 1.0)
 
-| Test year | Overall MAE |
-|-----------|-------------|
-| 2022 | 4,048 |
-| 2023 | 3,636 |
-| 2024 | 3,708 |
-| 2025 | 3,761 |
+| Model | 2022 | 2023 | 2024 | 2025 | Avg |
+|-------|------|------|------|------|-----|
+| **GP RBF** | **2,731** | **2,432** | **2,624** | **2,880** | **2,667** |
+| Global MLP | 2,676 | 2,437 | 2,597 | 2,992 | 2,676 |
+| AR(1) | 3,189 | 2,441 | 2,765 | 2,913 | 2,827 |
+| SVR RBF | 2,979 | 2,451 | 2,705 | 2,834 | 2,742 |
+| Median | 3,586 | 3,015 | 3,174 | 3,262 | 3,259 |
 
-CSAB overall MAE (2025, 4 training years): **49,869**.
+CSAB overall MAE (2025, 4 training years): **42,318** (GP-MLP ensemble) vs 49,869 (GP RBF alone).
 
 ## Data Sources
 
@@ -143,4 +151,4 @@ CSAB overall MAE (2025, 4 training years): **49,869**.
 
 ## Paper
 
-A full write-up of the methodology, engineering decisions, and evaluation is in [`paper.tex`](paper.tex) / [`paper.pdf`](paper.pdf).
+A research write-up covering the methodology, model comparisons, and evaluation results is in [`paper.pdf`](paper.pdf). The paper focuses on the statistical findings and system design; this README is the reference for installation, usage, and code structure.
