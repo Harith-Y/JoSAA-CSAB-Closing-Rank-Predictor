@@ -50,7 +50,8 @@ def _resolve_source(source: str) -> dict:
 def cmd_train(args):
     from pipeline.train import train
     cfg = _resolve_source(args.source)
-    train(cfg["csv"], model_path=cfg["model_path"], trend_model=args.trend_model,
+    trend_model = args.trend_model or cfg.get("trend_model", DEFAULT_TREND_MODEL)
+    train(cfg["csv"], model_path=cfg["model_path"], trend_model=trend_model,
           normalize=args.normalize_ranks,
           tune_mlp=getattr(args, "tune_mlp_hparams", False))
 
@@ -58,8 +59,9 @@ def cmd_train(args):
 def cmd_backtest(args):
     from pipeline.evaluate import backtest
     cfg = _resolve_source(args.source)
+    trend_model = args.trend_model or cfg.get("trend_model", DEFAULT_TREND_MODEL)
     backtest(cfg["csv"], test_year=args.year, rounds=cfg["rounds"],
-             trend_model=args.trend_model, normalize=args.normalize_ranks)
+             trend_model=trend_model, normalize=args.normalize_ranks)
 
 
 def cmd_tune(args):
@@ -166,11 +168,11 @@ def main():
         help="Data source (default: josaa)",
     )
     trend_kwargs = dict(
-        type=str, default=DEFAULT_TREND_MODEL,
+        type=str, default=None,
         choices=["ols", "theil_sen", "weighted_ols", "median",
                  "ridge", "svr_linear", "svr_rbf", "ar1", "arp", "gp_rbf",
                  "mlp", "mlp_ensemble"],
-        help=f"Year-trend model (default: {DEFAULT_TREND_MODEL}). "
+        help="Year-trend model (default: per-source - gp_rbf for josaa, mlp_ensemble for csab). "
              "mlp_ensemble blends per-slot GP RBF with the global MLP.",
     )
 

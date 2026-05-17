@@ -67,6 +67,7 @@ SOURCES = {
         "model":      "josaa_model.pkl",
         "round_col":  "Round",
         "rounds":     JOSAA_ROUNDS,
+        "trend_model": "gp_rbf",
         # safe ≤ 0.80xpred, match ≤ 1.00xpred, reach ≤ 1.20xpred
         "safe_threshold":  0.80,
         "reach_threshold": 1.20,
@@ -77,7 +78,8 @@ SOURCES = {
         "model":      "csab_model.pkl",
         "round_col":  "Special Round",
         "rounds":     CSAB_ROUNDS,
-        # Widen thresholds - CSAB MAE (~50k) is ~10x JOSAA MAE (~5k),
+        "trend_model": "mlp_ensemble",   # GP-MLP ensemble cuts MAE ~15% vs pure GP RBF
+        # Widen thresholds - CSAB MAE (~42k) is still ~15x JOSAA MAE (~3k),
         # so tight safe/reach bands would be misleading.
         "safe_threshold":  0.60,
         "reach_threshold": 1.50,

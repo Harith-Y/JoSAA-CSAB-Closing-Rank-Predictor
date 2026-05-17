@@ -36,7 +36,9 @@ def load_model_cached(source: str):
         if os.path.exists(csv_path):
             os.makedirs(MODEL_DIR, exist_ok=True)
             from pipeline.train import train
-            train(csv_path, model_path=path)
+            from pipeline.config import DEFAULT_TREND_MODEL
+            train(csv_path, model_path=path,
+                  trend_model=cfg.get("trend_model", DEFAULT_TREND_MODEL))
         else:
             return None, path
     with open(path, "rb") as f:
