@@ -47,9 +47,8 @@ def load_model_cached(source: str):
 
 # Helpers
 def _slot_label(row: pd.Series) -> str:
-    inst  = row["Institute"].split("(")[0].strip()
-    prog  = row["Academic Program Name"]
-    prog  = prog if len(prog) <= 50 else prog[:47] + "…"
+    inst = _short_institute_name(row["Institute"])
+    prog = _short_program_name(row["Academic Program Name"])
     return f"{inst} · {prog}"
 
 
