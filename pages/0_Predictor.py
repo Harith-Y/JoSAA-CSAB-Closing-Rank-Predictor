@@ -422,6 +422,14 @@ def _abbreviate_branch(prog: str) -> str:
         flags=re.IGNORECASE,
     )
 
+    # "X and M.Tech (X) Spl. Y" → "X+M.Tech (Y)"  (IIIT Allahabad integrated programs)
+    branch = re.sub(
+        r"\s+and\s+M\.Tech\.?\s*\([^)]+\)\s*Spl\.?\s*(.+)?$",
+        lambda m: f"+M.Tech ({m.group(1).strip()})" if m.group(1) else "+M.Tech",
+        branch,
+        flags=re.IGNORECASE,
+    )
+
     branch = re.sub(r"\s+", " ", branch).strip()
 
     for pattern, replacement in _BRANCH_ABBRS:
@@ -911,7 +919,7 @@ with tab_table:
     has_seats     = "Seats" in df.columns and df["Seats"].notna().any()
     has_intervals = "Lower" in df.columns and "Upper" in df.columns
     display_cols = (
-        ["Institute", "Program"]
+        ["InstAbbr", "Program"]
         + round_cols
         + ["Final Pred"]
         + (["Lower", "Upper"] if has_intervals else [])
@@ -920,6 +928,10 @@ with tab_table:
     )
     cov_pct = 95
     col_cfg = {
+        "InstAbbr": st.column_config.TextColumn(
+            "Institute",
+            help="Abbreviated institute name. Full name shown in the export CSV.",
+        ),
         "Program": st.column_config.TextColumn(
             "Program",
             help="Abbreviated branch name and degree type. "
