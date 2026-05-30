@@ -244,20 +244,24 @@ with st.sidebar:
         help=rank_help,
     )
 
-    quota = st.selectbox(
-        "Quota",
-        QUOTAS[source],
-        help=(
-            "**AI**: All India (open to everyone). IITs and IIITs use this exclusively. "
-            "NITs have very few AI seats and they're highly competitive.\n\n"
-            "**HS**: Home State. NIT seats for students from the same state as the NIT. "
-            "Largest share of NIT seats: pick this if you're from that state.\n\n"
-            "**OS**: Other State. NIT seats for students from outside the NIT's state.\n\n"
-            "**GO**: Goa. special quota at NIT Goa for students from Goa.\n\n"
-            "**JK**: Jammu & Kashmir. reserved for students domiciled in J&K.\n\n"
-            "**LA**: Ladakh. reserved for students domiciled in Ladakh.\n\n"
-        ),
-    )
+    if exam_type == "advanced":
+        quota = "AI"
+        st.info("IITs use the **AI** quota exclusively.")
+    else:
+        quota = st.selectbox(
+            "Quota",
+            QUOTAS[source],
+            help=(
+                "**AI**: All India (open to everyone). IITs and IIITs use this exclusively. "
+                "NITs have very few AI seats and they're highly competitive.\n\n"
+                "**HS**: Home State. NIT seats for students from the same state as the NIT. "
+                "Largest share of NIT seats: pick this if you're from that state.\n\n"
+                "**OS**: Other State. NIT seats for students from outside the NIT's state.\n\n"
+                "**GO**: Goa. special quota at NIT Goa for students from Goa.\n\n"
+                "**JK**: Jammu & Kashmir. reserved for students domiciled in J&K.\n\n"
+                "**LA**: Ladakh. reserved for students domiciled in Ladakh.\n\n"
+            ),
+        )
     seat_type = st.selectbox("Seat Type", SEAT_TYPES)
 
     gender_raw = st.radio("Gender", ["Gender-Neutral", "Female-only"])
