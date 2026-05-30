@@ -455,7 +455,7 @@ def tune_blend_alpha_loo(
 
     Returns:
         {
-          "best_alpha":    float,   # rounded average — recommended for deployment
+          "best_alpha":    float,   # rounded average - recommended for deployment
           "per_year":      dict,    # {year: best_alpha}
           "per_year_mae":  dict,    # {year: best_mae}
           "alpha_grid":    list,
