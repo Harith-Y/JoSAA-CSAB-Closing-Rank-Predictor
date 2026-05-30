@@ -269,22 +269,12 @@ with st.sidebar:
 
     include_reach = st.checkbox("Include reach colleges", value=True)
 
-    coverage = st.select_slider(
-        "How safe should the prediction be?",
-        options=[0.80, 0.85, 0.90, 0.95],
-        value=0.90,
-        format_func=lambda x: f"{int(x*100)}%",
-        help=(
-            "This controls how wide the prediction band is. "
-            "Higher values make the band wider and safer. "
-            "Lower values make it narrower and stricter."
-        ),
-    )
+    coverage = 0.95
 
     st.markdown("---")
     predict_btn = st.button("Predict", width="stretch", type="primary")
 
-    current_inputs = (source, exam_type, rank, quota, seat_type, gender, include_reach, coverage)
+    current_inputs = (source, exam_type, rank, quota, seat_type, gender, include_reach)
     if st.session_state.get("last_inputs") != current_inputs:
         st.session_state.pop("results_df", None)
         st.session_state.pop("last_rank", None)
@@ -447,7 +437,7 @@ with tab_table:
         + ["Years"]
         + (["Seats"] if has_seats else [])
     )
-    cov_pct = int(st.session_state.get("last_inputs", (None,)*8)[-1] * 100) if has_intervals else 90
+    cov_pct = 95
     col_cfg = {
         "Final Pred": st.column_config.NumberColumn("Final", format="%d"),
         "Lower":      st.column_config.NumberColumn(
