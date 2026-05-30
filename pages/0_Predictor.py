@@ -1011,7 +1011,7 @@ with tab_table:
     has_seats     = "Seats" in df.columns and df["Seats"].notna().any()
     has_intervals = "Lower" in df.columns and "Upper" in df.columns
     display_cols = (
-        ["InstAbbr", "Program"]
+        ["Institute", "Program"]
         + round_cols
         + ["Final Pred"]
         + (["Lower", "Upper"] if has_intervals else [])
@@ -1020,9 +1020,8 @@ with tab_table:
     )
     cov_pct = 95
     col_cfg = {
-        "InstAbbr": st.column_config.TextColumn(
+        "Institute": st.column_config.TextColumn(
             "Institute",
-            help="Abbreviated institute name. Full name shown in the export CSV.",
             width="large",
         ),
         "Program": st.column_config.TextColumn(
