@@ -8,6 +8,21 @@ import streamlit as st
 from pipeline.config import IIT_KEYWORDS, PREDICT_YEAR
 
 
+def _qp(key: str, default: str) -> str:
+    val = st.query_params.get(key)
+    return str(val) if val is not None else default
+
+
+def _qp_list(key: str, default: list, cast=str) -> list:
+    val = st.query_params.get(key)
+    if not val:
+        return default
+    try:
+        return [cast(v.strip()) for v in str(val).split(",") if v.strip()]
+    except (ValueError, AttributeError):
+        return default
+
+
 SEAT_TYPES = [
     "OPEN", "OPEN (PwD)",
     "EWS", "EWS (PwD)",
@@ -82,7 +97,11 @@ st.caption("Browse actual closing ranks from past JoSAA / CSAB counselling round
 with st.sidebar:
     st.header("Filters")
 
-    source = st.radio("Source", ["JoSAA", "CSAB"], horizontal=True).lower()
+    source = st.radio(
+        "Source", ["JoSAA", "CSAB"],
+        index=1 if _qp("source", "josaa") == "csab" else 0,
+        horizontal=True,
+    ).lower()
     table  = source  # table names match source names
 
     available_years = _fetch_years(table)
@@ -90,43 +109,57 @@ with st.sidebar:
         st.error("No data found. Please try again later.")
         st.stop()
 
+    _years_saved = _qp_list("years", [available_years[-1]], cast=int)
+    _years_default = [y for y in _years_saved if y in available_years] or [available_years[-1]]
     selected_years = st.multiselect(
         "Year(s)",
         options=available_years,
-        default=[available_years[-1]],
+        default=_years_default,
         help="Select one or more years.",
     )
     if not selected_years:
         st.warning("Select at least one year to load data.")
         st.stop()
 
+    _exam_opts = ["All", "JEE Mains (NIT / IIIT / GFTI)", "JEE Advanced (IIT)"]
+    _exam_saved = _qp("exam_filter", "All")
     exam_filter = st.radio(
         "Exam type",
-        ["All", "JEE Mains (NIT / IIIT / GFTI)", "JEE Advanced (IIT)"],
+        _exam_opts,
+        index=_exam_opts.index(_exam_saved) if _exam_saved in _exam_opts else 0,
     )
 
+    _quota_saved = [q for q in _qp_list("quota", []) if q in QUOTAS[source]]
     quota_filter = st.multiselect(
-        "Quota", QUOTAS[source], default=[],
+        "Quota", QUOTAS[source], default=_quota_saved,
         help="Leave empty to show all quotas.",
     )
 
+    _seat_saved = [s for s in _qp_list("seat_type", []) if s in SEAT_TYPES]
     seat_filter = st.multiselect(
-        "Seat Type", SEAT_TYPES, default=[],
+        "Seat Type", SEAT_TYPES, default=_seat_saved,
         help="Leave empty to show all seat types.",
     )
 
+    _gender_opts = ["Gender-Neutral", "Female-only (including Supernumerary)"]
+    _gender_saved = [g for g in _qp_list("gender", []) if g in _gender_opts]
     gender_filter = st.multiselect(
-        "Gender",
-        ["Gender-Neutral", "Female-only (including Supernumerary)"],
-        default=[],
+        "Gender", _gender_opts, default=_gender_saved,
     )
 
     rounds_available = [1, 2, 3, 4, 5, 6] if source == "josaa" else [1, 2]
     round_col = "Round" if source == "josaa" else "Special Round"
+    _rounds_saved = [r for r in _qp_list("rounds", [], cast=int) if r in rounds_available]
     round_filter = st.multiselect(
-        "Round", rounds_available, default=[],
+        "Round", rounds_available, default=_rounds_saved,
         help="Leave empty to show all rounds.",
     )
+
+# Pre-populate text inputs from URL on fresh load
+if "hist_inst" not in st.session_state:
+    st.session_state["hist_inst"] = _qp("inst", "")
+if "hist_prog" not in st.session_state:
+    st.session_state["hist_prog"] = _qp("prog", "")
 
 # Inline keyword filters
 c1, c2 = st.columns(2)
@@ -144,6 +177,19 @@ with c2:
         placeholder="e.g. CSE, Mechanical, Data Science, AI",
         help="Matches any part of the program name.",
     )
+
+# Sync all current filter state to URL
+st.query_params.update({
+    "source":      source,
+    "years":       ",".join(str(y) for y in sorted(selected_years)),
+    "exam_filter": exam_filter,
+    "quota":       ",".join(quota_filter),
+    "seat_type":   ",".join(seat_filter),
+    "gender":      ",".join(gender_filter),
+    "rounds":      ",".join(str(r) for r in sorted(round_filter)),
+    "inst":        inst_kw,
+    "prog":        prog_kw,
+})
 
 # Load + filter
 df = fetch_data(table, tuple(sorted(selected_years)))
