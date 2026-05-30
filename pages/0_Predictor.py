@@ -865,6 +865,24 @@ with st.expander("Export results", expanded=False):
         help="Choose one or more categories for the filtered CSV download.",
     )
 
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stDownloadButton"][data-key="export_all_btn"] button {
+            background-color: #2ecc71;
+            color: #fff;
+            border: none;
+            font-weight: 600;
+        }
+        div[data-testid="stDownloadButton"][data-key="export_all_btn"] button:hover {
+            background-color: #27ae60;
+            color: #fff;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     e1, e2 = st.columns(2)
     with e1:
         st.download_button(
@@ -873,6 +891,7 @@ with st.expander("Export results", expanded=False):
             file_name=f"{source}_{exam_type}_rank_{student_rank}_predictions.csv",
             mime="text/csv",
             width="stretch",
+            key="export_all_btn",
         )
 
     with e2:
