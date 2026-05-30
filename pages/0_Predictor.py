@@ -465,14 +465,26 @@ def _short_program_name(prog: str) -> str:
 
 
 def _short_institute_name(inst: str) -> str:
-    inst = inst.split("(")[0].strip()
+    # Remove parenthetical clarifications but keep text that follows them
+    # e.g. "IIT (BHU) Varanasi" → "IIT Varanasi", "IIIT (IIIT) Nagpur" → "IIIT Nagpur"
+    inst = re.sub(r"\s*\([^)]*\)", "", inst).strip()
     replacements = [
+        # ── Named NITs (must come before generic NIT pattern) ─────────────────
+        (r"^Dr\.?\s*B\.?\s*R\.?\s*Ambedkar National Institute of Technology[,\s]+", "NIT "),
+        (r"^Malaviya National Institute of Technology[,\s]+", "MNIT "),
+        (r"^Maulana Azad National Institute of Technology[,\s]+", "MANIT "),
+        (r"^Motilal Nehru National Institute of Technology[,\s]+", "MNNIT "),
+        (r"^Sardar Vallabhbhai National Institute of Technology[,\s]+", "SVNIT "),
+        (r"^Visvesvaraya National Institute of Technology[,\s]+", "VNIT "),
+        # ── Standard patterns ─────────────────────────────────────────────────
         (r"^Indian Institute of Technology, Design & Manufacturing\b", "IIITDM"),
         (r"^Indian Institute of Information Technology, Design & Manufacturing\b", "IIITDM"),
-        (r"^Indian Institute of Information Technology\b", "IIIT"),
-        (r"^International Institute of Information Technology\b", "IIIT"),
-        (r"^National Institute of Technology\b", "NIT"),
-        (r"^Indian Institute of Technology\b", "IIT"),
+        (r"^Indian Institute of Information Technology[,\s]+", "IIIT "),
+        (r"^Indian institute of information technology[,\s]+", "IIIT "),
+        (r"^INDIAN INSTITUTE OF INFORMATION TECHNOLOGY[,\s]+", "IIIT "),
+        (r"^International Institute of Information Technology[,\s]+", "IIIT "),
+        (r"^National Institute of Technology[,\s]+", "NIT "),
+        (r"^Indian Institute of Technology[,\s]+", "IIT "),
         (r"^Indian Institute of Engineering Science and Technology\b", "IIEST"),
         (r"^Indian Institute of Science Education and Research\b", "IISER"),
         (r"^Indian Institute of Science\b", "IISc"),
@@ -481,7 +493,7 @@ def _short_institute_name(inst: str) -> str:
         inst = re.sub(pattern, replacement, inst, count=1)
     inst = re.sub(r"\bUniversity\b", "Univ.", inst)
     inst = re.sub(r"\bInstitute\b", "Inst.", inst)
-    inst = re.sub(r"\s+,\s+", ", ", inst)
+    inst = re.sub(r"\s+,\s+|\s{2,}", " ", inst).strip()
     if len(inst) > 32:
         inst = inst[:29] + "…"
     return inst
