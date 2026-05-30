@@ -853,6 +853,8 @@ export_cols = [
     *round_cols, "Final Pred", "Lower", "Upper", "Years", "Seats",
 ]
 export_df = df[[c for c in export_cols if c in df.columns]].copy()
+_cat_order = {"reach": 0, "match": 1, "safe": 2}
+export_df = export_df.sort_values("Category", key=lambda s: s.map(_cat_order)).reset_index(drop=True)
 csv_data = export_df.to_csv(index=False).encode("utf-8")
 
 with st.expander("Export results", expanded=False):
