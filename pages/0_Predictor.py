@@ -872,44 +872,82 @@ with tab_table:
         )
 
     with st.popover("📖 Abbr. guide", use_container_width=False):
-        st.caption("Short codes used in the **Program** column. Full names also work in the filter.")
+        g_prog, g_inst = st.tabs(["Programs", "Institutes"])
 
-        # Build unique code → canonical name from _BRANCH_ABBRS (first occurrence per code)
-        _seen_codes: dict[str, str] = {}
-        for _pat, _code in _BRANCH_ABBRS:
-            if _code not in _seen_codes:
-                _name = re.sub(r"\\.|\?|\.\*", "", _pat).strip()
-                _seen_codes[_code] = _name
-        _guide_df = pd.DataFrame(
-            sorted(_seen_codes.items(), key=lambda x: x[0]),
-            columns=["Code", "Branch"],
-        )
-        st.dataframe(_guide_df, hide_index=True, use_container_width=True, height=380)
+        with g_prog:
+            st.caption("Short codes used in the **Program** column. Full names also work in the filter.")
+            _seen_codes: dict[str, str] = {}
+            for _pat, _code in _BRANCH_ABBRS:
+                if _code not in _seen_codes:
+                    _name = re.sub(r"\\.|\?|\.\*", "", _pat).strip()
+                    _seen_codes[_code] = _name
+            _guide_df = pd.DataFrame(
+                sorted(_seen_codes.items(), key=lambda x: x[0]),
+                columns=["Code", "Branch"],
+            )
+            st.dataframe(_guide_df, hide_index=True, use_container_width=True, height=300)
 
-        st.caption("**Degree types** in the Program column:")
-        st.markdown(
-            "| Code | Meaning |\n|---|---|\n"
-            "| `4Y B.Tech` | 4-year Bachelor of Technology |\n"
-            "| `5Y B.Tech+M.Tech` | 5-year Dual Degree |\n"
-            "| `5Y M.Tech (Int.)` | 5-year Integrated M.Tech |\n"
-            "| `5Y M.Sc (Int.)` | 5-year Integrated M.Sc |\n"
-            "| `5Y B.Arch` | 5-year Bachelor of Architecture |\n"
-            "| `4Y B.Des` | 4-year Bachelor of Design |\n"
-            "| `4Y B.Plan` | 4-year Bachelor of Planning |"
-        )
-        st.caption("**Search shortcuts** (not branch codes):")
-        st.markdown(
-            "| Type | Searches for |\n|---|---|\n"
-            "| `DUAL` or `INT` | All dual / integrated programmes |\n"
-            "| `BIO` | All Bio-related branches |\n"
-            "| `GEO` | Geology / Geophysics |\n"
-            "| `ENV` | Environmental Engineering |\n"
-            "| `ML` | Machine Learning |\n"
-            "| `IOT` | Internet of Things |\n"
-            "| `VLSI` | VLSI-related programmes |\n"
-            "| `MECH` | Mechanical (alias for ME) |\n"
-            "| `CHEM` | Chemical (alias for ChE) |"
-        )
+            st.caption("**Degree types** in the Program column:")
+            st.markdown(
+                "| Code | Meaning |\n|---|---|\n"
+                "| `4Y B.Tech` | 4-year Bachelor of Technology |\n"
+                "| `5Y B.Tech+M.Tech` | 5-year Dual Degree |\n"
+                "| `5Y M.Tech (Int.)` | 5-year Integrated M.Tech |\n"
+                "| `5Y M.Sc (Int.)` | 5-year Integrated M.Sc |\n"
+                "| `5Y B.Arch` | 5-year Bachelor of Architecture |\n"
+                "| `4Y B.Des` | 4-year Bachelor of Design |\n"
+                "| `4Y B.Plan` | 4-year Bachelor of Planning |"
+            )
+            st.caption("**Search shortcuts** (not branch codes):")
+            st.markdown(
+                "| Type | Searches for |\n|---|---|\n"
+                "| `DUAL` or `INT` | All dual / integrated programmes |\n"
+                "| `BIO` | All Bio-related branches |\n"
+                "| `GEO` | Geology / Geophysics |\n"
+                "| `ENV` | Environmental Engineering |\n"
+                "| `ML` | Machine Learning |\n"
+                "| `IOT` | Internet of Things |\n"
+                "| `VLSI` | VLSI-related programmes |\n"
+                "| `MECH` | Mechanical (alias for ME) |\n"
+                "| `CHEM` | Chemical (alias for ChE) |"
+            )
+
+        with g_inst:
+            st.caption("Short codes used in the **Institute** column. Full names also work in the filter.")
+            st.markdown(
+                "**IITs**\n\n"
+                "| Code | Institute |\n|---|---|\n"
+                "| `IIT Bombay` | Indian Institute of Technology Bombay |\n"
+                "| `IIT Delhi` | Indian Institute of Technology Delhi |\n"
+                "| `IIT Madras` | Indian Institute of Technology Madras |\n"
+                "| `IIT Kanpur` | Indian Institute of Technology Kanpur |\n"
+                "| `IIT Kharagpur` | Indian Institute of Technology Kharagpur |\n"
+                "| `IIT Roorkee` | Indian Institute of Technology Roorkee |\n"
+                "| `IIT Guwahati` | Indian Institute of Technology Guwahati |\n"
+                "| `IIT Hyderabad` | Indian Institute of Technology Hyderabad |\n"
+                "| `IIT Varanasi` | IIT (BHU) Varanasi |\n"
+                "| `IIT Dhanbad` | IIT (ISM) Dhanbad |\n\n"
+                "**Named NITs**\n\n"
+                "| Code | Institute |\n|---|---|\n"
+                "| `MNIT Jaipur` | Malaviya NIT Jaipur |\n"
+                "| `MANIT Bhopal` | Maulana Azad NIT Bhopal |\n"
+                "| `MNNIT Allahabad` | Motilal Nehru NIT Allahabad |\n"
+                "| `SVNIT Surat` | Sardar Vallabhbhai NIT Surat |\n"
+                "| `VNIT Nagpur` | Visvesvaraya NIT Nagpur |\n"
+                "| `NIT Trichy` | NIT Tiruchirappalli |\n"
+                "| `NIT Surathkal` | NIT Karnataka, Surathkal |\n\n"
+                "**Institute-type search shortcuts**\n\n"
+                "| Type | Finds |\n|---|---|\n"
+                "| `NIT` | All NITs |\n"
+                "| `IIT` | All IITs (not IIITs) |\n"
+                "| `IIIT` | All IIITs (both Indian & International) |\n"
+                "| `IIEST` | IIE Science & Technology, Shibpur |\n"
+                "| `BIT` | Birla Inst. of Technology |\n"
+                "| `SPA` | School of Planning & Architecture |\n"
+                "| `PEC` | Punjab Engineering College |\n"
+                "| `SLIET` | Sant Longowal Inst. of Engg. |\n"
+                "| `NIFFT` | Natl. Inst. of Foundry & Forge Tech. |"
+            )
 
     table_df = df.copy()
     if prog_kw:
