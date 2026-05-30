@@ -457,7 +457,7 @@ def _display_program_name(prog: str) -> str:
 
 
 def _short_program_name(prog: str) -> str:
-    """Abbreviated branch only, no degree suffix — used for compact chart labels."""
+    """Abbreviated branch only, no degree suffix; used for compact chart labels."""
     branch = _abbreviate_branch(prog)
     if len(branch) > 28:
         branch = branch[:25] + "…"
@@ -597,6 +597,13 @@ def _build_trajectory_fig(
 
 
 # ── URL query-param helpers ──────────────────────────────────────────────────
+# Snapshot BEFORE the sidebar writes defaults. True only when the user
+# navigated here with a previously-saved URL (refresh / shared link).
+_HAD_URL_STATE = all(
+    k in st.query_params for k in ("rank", "quota", "seat_type", "gender")
+)
+
+
 def _qp(key: str, default: str) -> str:
     val = st.query_params.get(key)
     return str(val) if val is not None else default
@@ -751,10 +758,7 @@ with st.sidebar:
     })
 
 # Auto-predict on fresh load when URL already has saved inputs
-_auto_predict = (
-    all(k in st.query_params for k in ("rank", "quota", "seat_type", "gender"))
-    and "results_df" not in st.session_state
-)
+_auto_predict = _HAD_URL_STATE and "results_df" not in st.session_state
 
 
 # Main area
