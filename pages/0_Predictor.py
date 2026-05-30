@@ -212,7 +212,10 @@ with st.sidebar:
 
     if source == "csab":
         exam_type = "mains"
-        st.info("CSAB covers NITs / IIITs / GFTIs only (JEE Mains ranks).")
+        st.info(
+            "CSAB covers NITs / IIITs / GFTIs only (JEE Mains ranks). "
+            "**CSAB uses CRL for all categories**. Enter your CRL rank below, not your category rank."
+        )
     else:
         exam_label = st.radio(
             "Exam",
@@ -221,15 +224,24 @@ with st.sidebar:
         )
         exam_type = "advanced" if "Advanced" in exam_label else "mains"
 
+    if source == "csab":
+        rank_help = (
+            "Enter your JEE Mains **CRL (Common Rank List)** rank. "
+            "CSAB uses CRL for all seat types; including OBC-NCL, SC, ST, and EWS. "
+            "Do not enter your category rank here."
+        )
+    else:
+        rank_help = (
+            "Enter the rank corresponding to your selected Seat Type. "
+            "Use CRL for OPEN / OPEN (PwD), and category rank for "
+            "OBC-NCL / SC / ST / EWS (including PwD variants)."
+        )
+
     rank = st.number_input(
         "Your rank",
         min_value=1, max_value=1_000_000,
         value=10_000, step=100,
-        help=(
-            "Enter the rank corresponding to your selected Seat Type. "
-            "Use CRL for OPEN / OPEN (PwD), and category rank for "
-            "OBC-NCL / SC / ST / EWS (including PwD variants)."
-        ),
+        help=rank_help,
     )
 
     quota = st.selectbox(
