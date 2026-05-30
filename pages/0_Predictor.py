@@ -596,6 +596,12 @@ def _build_trajectory_fig(
     return fig
 
 
+# ── URL query-param helpers ──────────────────────────────────────────────────
+def _qp(key: str, default: str) -> str:
+    val = st.query_params.get(key)
+    return str(val) if val is not None else default
+
+
 # Sidebar
 with st.sidebar:
     st.title("College Predictor")
@@ -605,6 +611,7 @@ with st.sidebar:
     source = st.radio(
         "Counselling source",
         ["JoSAA", "CSAB"],
+        index=1 if _qp("source", "josaa") == "csab" else 0,
         horizontal=True,
         help=(
             "**JoSAA** (Joint Seat Allocation Authority): The main annual counselling "
@@ -627,6 +634,7 @@ with st.sidebar:
         exam_label = st.radio(
             "Exam",
             ["JEE Mains  →  NIT / IIIT / GFTI", "JEE Advanced  →  IIT"],
+            index=1 if _qp("exam", "mains") == "advanced" else 0,
             help=(
                 "**JEE Mains → NIT / IIIT / GFTI**: Use your JEE Mains rank. "
                 "Covers National Institutes of Technology (NITs), Indian Institutes of "
@@ -651,10 +659,14 @@ with st.sidebar:
             "OBC-NCL / SC / ST / EWS (including PwD variants)."
         )
 
+    try:
+        _rank_default = max(1, min(1_000_000, int(_qp("rank", "10000"))))
+    except ValueError:
+        _rank_default = 10_000
     rank = st.number_input(
         "Your rank",
         min_value=1, max_value=1_000_000,
-        value=10_000, step=100,
+        value=_rank_default, step=100,
         help=rank_help,
     )
 
@@ -662,9 +674,12 @@ with st.sidebar:
         quota = "AI"
         st.info("IITs use the **AI** quota exclusively.")
     else:
+        _quota_default = _qp("quota", QUOTAS[source][0])
+        _quota_idx = QUOTAS[source].index(_quota_default) if _quota_default in QUOTAS[source] else 0
         quota = st.selectbox(
             "Quota",
             QUOTAS[source],
+            index=_quota_idx,
             help=(
                 "**AI**: All India (open to everyone). IITs and IIITs use this exclusively. "
                 "NITs have very few AI seats and they're highly competitive.\n\n"
@@ -676,9 +691,12 @@ with st.sidebar:
                 "**LA**: Ladakh. reserved for students domiciled in Ladakh.\n\n"
             ),
         )
+    _seat_default = _qp("seat_type", "OPEN")
+    _seat_idx = SEAT_TYPES.index(_seat_default) if _seat_default in SEAT_TYPES else 0
     seat_type = st.selectbox(
         "Seat Type",
         SEAT_TYPES,
+        index=_seat_idx,
         help=(
             "Select the category that matches what is printed on your JEE rank card.\n\n"
             "**OPEN**: General category, i.e. no reservation. Any candidate can compete.\n\n"
@@ -696,6 +714,7 @@ with st.sidebar:
     gender_raw = st.radio(
         "Gender",
         ["Gender-Neutral", "Female-only"],
+        index=1 if _qp("gender", "GN") == "FO" else 0,
         help=(
             "**Gender-Neutral**: Seats open to candidates of all genders. "
             "The vast majority of seats fall in this category.\n\n"
@@ -721,6 +740,22 @@ with st.sidebar:
         st.session_state.pop("results_df", None)
         st.session_state.pop("last_rank", None)
 
+    # Sync current inputs to URL (survives refresh; makes URL shareable)
+    st.query_params.update({
+        "source":    source,
+        "exam":      exam_type,
+        "rank":      str(rank),
+        "quota":     quota,
+        "seat_type": seat_type,
+        "gender":    "FO" if gender_raw == "Female-only" else "GN",
+    })
+
+# Auto-predict on fresh load when URL already has saved inputs
+_auto_predict = (
+    all(k in st.query_params for k in ("rank", "quota", "seat_type", "gender"))
+    and "results_df" not in st.session_state
+)
+
 
 # Main area
 st.title("JoSAA / CSAB Closing Rank Predictor")
@@ -728,7 +763,7 @@ st.title("JoSAA / CSAB Closing Rank Predictor")
 if cfg.get("disclaimer"):
     st.warning(cfg["disclaimer"])
 
-if predict_btn:
+if predict_btn or _auto_predict:
     model, model_path = load_model_cached(source)
     if model is None:
         st.error(
