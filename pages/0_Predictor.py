@@ -881,7 +881,7 @@ export_cols = [
 ]
 export_df = df[[c for c in export_cols if c in df.columns]].copy()
 _cat_order = {"reach": 0, "match": 1, "safe": 2}
-export_df = export_df.sort_values("Category", key=lambda s: s.map(_cat_order)).reset_index(drop=True)
+export_df = export_df.sort_values("Category", key=lambda s: s.map(_cat_order), kind="stable").reset_index(drop=True)
 csv_data = export_df.to_csv(index=False).encode("utf-8")
 
 with st.expander("Export results", expanded=False):
@@ -1096,7 +1096,7 @@ with tab_table:
         "reach": "Your rank is slightly above the predicted closing rank. Lower probability, but possible if cutoffs relax.",
     }
 
-    for cat in ["safe", "match", "reach"]:
+    for cat in ["reach", "match", "safe"]:
         subset = table_df[table_df["Category"] == cat]
         if subset.empty:
             continue
