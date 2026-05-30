@@ -302,6 +302,54 @@ _PROG_FILTER_ALIASES = {
     "EEE":    "EEE",
 }
 
+# Institute filter aliases: typed code → substring to search in raw Institute column.
+_INST_FILTER_ALIASES = {
+    # Institute types
+    "NIT":    "National Institute of Technology",
+    "IIT":    "Indian Institute of Technology",
+    "IIIT":   r"Indian Institute of Information Technology|International Institute of Information Technology",
+    "IIEST":  "Indian Institute of Engineering Science",
+    "IISER":  "Indian Institute of Science Education",
+    "IISC":   "Indian Institute of Science",
+    # Specific IITs
+    "IITB":   "Indian Institute of Technology Bombay",
+    "IITD":   "Indian Institute of Technology Delhi",
+    "IITM":   "Indian Institute of Technology Madras",
+    "IITK":   "Indian Institute of Technology Kanpur",
+    "IITKGP": "Indian Institute of Technology Kharagpur",
+    "IITG":   "Indian Institute of Technology Guwahati",
+    "IITR":   "Indian Institute of Technology Roorkee",
+    "IITH":   "Indian Institute of Technology Hyderabad",
+    "IITBHU": "Indian Institute of Technology (BHU)",
+    "IITISM": "Indian Institute of Technology (ISM)",
+    "ISM":    "Indian Institute of Technology (ISM)",
+    # Specific NITs
+    "NITK":   "National Institute of Technology Karnataka",
+    "NITC":   "National Institute of Technology Calicut",
+    "NITT":   "National Institute of Technology, Tiruchirappalli",
+    "NITR":   "National Institute of Technology, Rourkela",
+    "NITW":   "National Institute of Technology, Warangal",
+    "NITJ":   "National Institute of Technology, Jamshedpur",
+    "VNIT":   "Visvesvaraya National Institute of Technology",
+    "SVNIT":  "Sardar Vallabhbhai National Institute",
+    "MNIT":   "Malaviya National Institute of Technology",
+    "MANIT":  "Maulana Azad National Institute",
+    "MNNIT":  "Motilal Nehru National Institute",
+    "NITIE":  "National Institute of Industrial Engineering",
+    # Specific IIITs
+    "IIITA":  "Indian Institute of Information Technology, Allahabad",
+    "IIITDM": r"Design.*Manufacturing|Design & Manufacturing",
+    "ABV":    "Atal Bihari Vajpayee",
+    # GFTIs
+    "BIT":    "Birla Institute of Technology",
+    "SPA":    "School of Planning",
+    "PEC":    "Punjab Engineering College",
+    "SLIET":  "Sant Longowal",
+    "NERIST": "North Eastern Regional Institute",
+    "NIFFT":  "National Institute of Foundry",
+    "NIFTEM": "National Institute of Food Technology",
+}
+
 _DEGREE_PATTERNS = [
     (r"(\d+)\s+Years?.*B\.?\s*Tech\.?\s*/\s*B\.?\s*Tech\.?\s*\(Hons",
      lambda m: f"{m.group(1)}Y B.Tech (Hons.)"),
@@ -718,7 +766,8 @@ if df is None or df.empty:
 round_cols = [c for c in df.columns if c.startswith("R") and c[1:].isdigit()]
 student_rank = st.session_state.get("last_rank", rank)
 
-df["Program"] = df["Academic Program Name"].apply(_display_program_name)
+df["Program"]   = df["Academic Program Name"].apply(_display_program_name)
+df["InstAbbr"]  = df["Institute"].apply(_short_institute_name)
 
 # Summary metrics
 counts = df["Category"].value_counts()
@@ -850,8 +899,10 @@ with tab_table:
             | table_df["Academic Program Name"].str.contains(search_kw, case=False, na=False)
         ]
     if inst_kw:
+        inst_search = _INST_FILTER_ALIASES.get(inst_kw.strip().upper(), inst_kw)
         table_df = table_df[
-            table_df["Institute"].str.contains(inst_kw, case=False, na=False)
+            table_df["Institute"].str.contains(inst_search, case=False, na=False)
+            | table_df["InstAbbr"].str.contains(inst_kw, case=False, na=False)
         ]
 
     if table_df.empty:
