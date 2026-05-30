@@ -132,8 +132,8 @@ _BRANCH_ABBRS = [
     (r"Ocean Engineering and Naval Architecture", "OENA"),
     (r"Ocean Engineering", "OE"),
     (r"Naval Architecture", "NA"),
-    (r"Space Science and Engineering", "SpaceE"),
-    (r"Space Sciences and Engineering", "SpaceE"),
+    (r"Space Science and Engineering", "SSE"),
+    (r"Space Sciences and Engineering", "SSsE"),
     # ── Mining / Petroleum / Energy ────────────────────────────────────────────
     (r"Mining Machinery Engineering", "MinMachE"),
     (r"Mining Safety Engineering", "MSE"),
