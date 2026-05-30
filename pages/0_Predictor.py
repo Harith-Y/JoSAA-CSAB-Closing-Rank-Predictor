@@ -736,7 +736,7 @@ if predict_btn:
             f"The app needs either:\n"
             f"- `models/{source}_model.pkl` (pre-trained, commit to the repo), **or**\n"
             f"- `{source}_ranks.csv` (raw data, app will auto-train on first load)\n\n"
-            f"Run locally: `python predict_cli.py train --source {source}` "
+            f"Run locally: `python scripts/predict_cli.py train --source {source}` "
             f"then commit `models/{source}_model.pkl`."
         )
         st.stop()

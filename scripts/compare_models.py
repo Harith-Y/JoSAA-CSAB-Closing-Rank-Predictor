@@ -11,11 +11,11 @@ Multi-year mode (--years):
     SVR RBF multi-year validation task.
 
 Usage:
-    python compare_models.py                              # both sources, most recent year
-    python compare_models.py josaa                        # JoSAA only
-    python compare_models.py josaa --year 2024            # single year
-    python compare_models.py josaa --years 2022 2023 2024 2025          # multi-year, all models
-    python compare_models.py josaa --years 2022 2023 2024 2025 \\
+    python scripts/compare_models.py                              # both sources, most recent year
+    python scripts/compare_models.py josaa                        # JoSAA only
+    python scripts/compare_models.py josaa --year 2024            # single year
+    python scripts/compare_models.py josaa --years 2022 2023 2024 2025          # multi-year, all models
+    python scripts/compare_models.py josaa --years 2022 2023 2024 2025 \\
                                    --models median svr_rbf               # focused comparison
 """
 

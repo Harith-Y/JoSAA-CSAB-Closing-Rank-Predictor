@@ -14,7 +14,7 @@ Seat-type column order in the table (indices 4..13 on row A, 1..10 on row C):
     OPEN | OPEN-PwD | GEN-EWS | GEN-EWS-PwD | SC | SC-PwD | ST | ST-PwD | OBC-NCL | OBC-NCL-PwD
 
 Usage:
-    python scrape_seat_matrix.py
+    python scripts/scrape_seat_matrix.py
 """
 
 import csv

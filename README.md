@@ -12,24 +12,25 @@ Key finding: JoSAA closing ranks are **mean-reverting**, not trending. The histo
 
 ```
 JOSAA/
-├── scrape_josaa.py        # Historical JoSAA scraper (2016–2024, Playwright)
-├── scrape_josaa_2025.py   # JoSAA 2025 current-year scraper
-├── scrape_csab.py         # Historical CSAB scraper (2021–2024)
-├── scrape_csab_2025.py    # CSAB 2025 current-year scraper
-├── predict_cli.py         # CLI: train / backtest / tune / predict
-├── app.py                 # Streamlit web UI with interactive trajectory plot
-├── compare_models.py      # Trend-model comparison framework
-├── josaa_ranks.csv        # JoSAA dataset (~514k rows, 2016–2025)
-├── csab_ranks.csv         # CSAB dataset (~47k rows, 2021–2025)
+├── scripts/
+│   ├── scrape_josaa.py        # Historical JoSAA scraper (2016–2024, Playwright)
+│   ├── scrape_josaa_2025.py   # JoSAA 2025 current-year scraper
+│   ├── scrape_csab.py         # Historical CSAB scraper (2021–2024)
+│   ├── scrape_csab_2025.py    # CSAB 2025 current-year scraper
+│   ├── predict_cli.py         # CLI: train / backtest / tune / predict
+│   └── compare_models.py      # Trend-model comparison framework
+├── app.py                     # Streamlit web UI with interactive trajectory plot
+├── josaa_ranks.csv            # JoSAA dataset (~514k rows, 2016–2025)
+├── csab_ranks.csv             # CSAB dataset (~47k rows, 2021–2025)
 ├── models/
-│   ├── josaa_model.pkl    # Trained JoSAA slot models
-│   └── csab_model.pkl     # Trained CSAB slot models
+│   ├── josaa_model.pkl        # Trained JoSAA slot models
+│   └── csab_model.pkl         # Trained CSAB slot models
 └── pipeline/
-    ├── config.py          # Constants, hyperparameters, source configs
-    ├── loader.py          # CSV loading, cleaning, quota normalisation
-    ├── train.py           # SlotModel class and training loop
-    ├── predict.py         # Eligibility filtering and per-round prediction
-    └── evaluate.py        # Backtesting and ensemble weight tuning
+    ├── config.py              # Constants, hyperparameters, source configs
+    ├── loader.py              # CSV loading, cleaning, quota normalisation
+    ├── train.py               # SlotModel class and training loop
+    ├── predict.py             # Eligibility filtering and per-round prediction
+    └── evaluate.py            # Backtesting and ensemble weight tuning
 ```
 
 ## Installation
@@ -47,8 +48,8 @@ playwright install chromium      # only needed for scrapers
 ### 1. Collect data (skip if CSVs already present)
 
 ```bash
-python scrape_josaa.py && python scrape_josaa_2025.py
-python scrape_csab.py  && python scrape_csab_2025.py
+python scripts/scrape_josaa.py && python scripts/scrape_josaa_2025.py
+python scripts/scrape_csab.py  && python scripts/scrape_csab_2025.py
 ```
 
 Scraping takes ~4 hours for JoSAA and ~30 minutes for CSAB. The scrapers are resume-safe, a crash just requires a restart.
@@ -56,31 +57,31 @@ Scraping takes ~4 hours for JoSAA and ~30 minutes for CSAB. The scrapers are res
 ### 2. Train
 
 ```bash
-python predict_cli.py train                  # JoSAA (default)
-python predict_cli.py train --source csab
+python scripts/predict_cli.py train                  # JoSAA (default)
+python scripts/predict_cli.py train --source csab
 ```
 
 ### 3. Backtest
 
 ```bash
-python predict_cli.py backtest --year 2024
-python predict_cli.py backtest --source csab
+python scripts/predict_cli.py backtest --year 2024
+python scripts/predict_cli.py backtest --source csab
 ```
 
 ### 4. Tune ensemble weight (optional)
 
 ```bash
 # Inspect the w vs MAE table
-python predict_cli.py tune --source josaa --val-year 2024
+python scripts/predict_cli.py tune --source josaa --val-year 2024
 
 # Write the optimal w into the model pickle
-python predict_cli.py tune --source josaa --val-year 2024 --save
+python scripts/predict_cli.py tune --source josaa --val-year 2024 --save
 ```
 
 ### 5. Predict (CLI)
 
 ```bash
-python predict_cli.py predict \
+python scripts/predict_cli.py predict \
     --rank 5000 --exam mains \
     --quota AI --seat-type OPEN \
     --gender Gender-Neutral
@@ -88,7 +89,7 @@ python predict_cli.py predict \
 
 ```bash
 # CSAB (shows disclaimer automatically)
-python predict_cli.py predict --source csab \
+python scripts/predict_cli.py predict --source csab \
     --rank 8000 --exam mains \
     --quota AI --seat-type OPEN \
     --gender Gender-Neutral

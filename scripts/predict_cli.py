@@ -4,18 +4,18 @@ CLI entry point for college predictions.
 Usage examples:
 
 # Train JOSAA model (default):
-  python predict_cli.py train
-  python predict_cli.py train --source josaa
+  python scripts/predict_cli.py train
+  python scripts/predict_cli.py train --source josaa
 
 # Train CSAB model:
-  python predict_cli.py train --source csab
+  python scripts/predict_cli.py train --source csab
 
 # Backtest:
-  python predict_cli.py backtest
-  python predict_cli.py backtest --source csab --year 2024
+  python scripts/predict_cli.py backtest
+  python scripts/predict_cli.py backtest --source csab --year 2024
 
 # Predict (JOSAA):
-  python predict_cli.py predict \
+  python scripts/predict_cli.py predict \
       --rank 5000 \
       --exam mains \
       --quota AI \
@@ -23,7 +23,7 @@ Usage examples:
       --gender Gender-Neutral
 
 # Predict (CSAB):
-  python predict_cli.py predict \
+  python scripts/predict_cli.py predict \
       --source csab \
       --rank 8000 \
       --exam mains \
@@ -95,7 +95,7 @@ def cmd_predict(args):
 
     if not os.path.exists(cfg["model_path"]):
         print(f"Model not found: {cfg['model_path']}")
-        print(f"Run:  python predict_cli.py train --source {args.source}")
+        print(f"Run:  python scripts/predict_cli.py train --source {args.source}")
         sys.exit(1)
 
     # Normalise gender input
