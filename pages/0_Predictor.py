@@ -741,18 +741,8 @@ with tab_table:
         prog_kw = st.text_input(
             "Filter by branch",
             key="filter_prog",
-            placeholder="e.g. CSE, EE, Dual, B.Arch, M.Sc",
-            help=(
-                "Searches abbreviated program names and raw names. "
-                "Common abbreviations: CSE, ECE, EE, ME, CE, ChE, IT, MnC, AE, BT, AI, DS, EEE, PIE. "
-                "Special codes: OE = Ocean Engg, NA = Naval Arch, NE / NUC = Nuclear, "
-                "BME = Biomedical, MECHAT = Mechatronics, PETRO = Petroleum, "
-                "ENV = Environmental, GEO = Geology/Geophysics, MFG = Manufacturing, "
-                "PHARMA = Pharmaceutical, BIO = all Bio-related, ML = Machine Learning, "
-                "IOT = Internet of Things, VLSI = VLSI. "
-                "Degree filters: DUAL = dual-degree, INT = integrated M.Tech/M.Sc, "
-                "BTECH, MTECH, BARCH."
-            ),
+            placeholder="e.g. CSE, OE, Dual, ChE, MnC",
+            help="Supports short codes and full words. Click '📖 Abbr. guide' below to see all codes.",
         )
 
     with f2:
@@ -761,6 +751,46 @@ with tab_table:
             key="filter_inst",
             placeholder="e.g. NIT Trichy, IIT Bombay, IIIT Hyderabad",
             help="Matches any part of the institute name.",
+        )
+
+    with st.popover("📖 Abbr. guide", use_container_width=False):
+        st.caption("Short codes used in the **Program** column. Full names also work in the filter.")
+
+        # Build unique code → canonical name from _BRANCH_ABBRS (first occurrence per code)
+        _seen_codes: dict[str, str] = {}
+        for _pat, _code in _BRANCH_ABBRS:
+            if _code not in _seen_codes:
+                _name = re.sub(r"\\.|\?|\.\*", "", _pat).strip()
+                _seen_codes[_code] = _name
+        _guide_df = pd.DataFrame(
+            sorted(_seen_codes.items(), key=lambda x: x[0]),
+            columns=["Code", "Branch"],
+        )
+        st.dataframe(_guide_df, hide_index=True, use_container_width=True, height=380)
+
+        st.caption("**Degree types** in the Program column:")
+        st.markdown(
+            "| Code | Meaning |\n|---|---|\n"
+            "| `4Y B.Tech` | 4-year Bachelor of Technology |\n"
+            "| `5Y B.Tech+M.Tech` | 5-year Dual Degree |\n"
+            "| `5Y M.Tech (Int.)` | 5-year Integrated M.Tech |\n"
+            "| `5Y M.Sc (Int.)` | 5-year Integrated M.Sc |\n"
+            "| `5Y B.Arch` | 5-year Bachelor of Architecture |\n"
+            "| `4Y B.Des` | 4-year Bachelor of Design |\n"
+            "| `4Y B.Plan` | 4-year Bachelor of Planning |"
+        )
+        st.caption("**Search shortcuts** (not branch codes):")
+        st.markdown(
+            "| Type | Searches for |\n|---|---|\n"
+            "| `DUAL` or `INT` | All dual / integrated programmes |\n"
+            "| `BIO` | All Bio-related branches |\n"
+            "| `GEO` | Geology / Geophysics |\n"
+            "| `ENV` | Environmental Engineering |\n"
+            "| `ML` | Machine Learning |\n"
+            "| `IOT` | Internet of Things |\n"
+            "| `VLSI` | VLSI-related programmes |\n"
+            "| `MECH` | Mechanical (alias for ME) |\n"
+            "| `CHEM` | Chemical (alias for ChE) |"
         )
 
     table_df = df.copy()
