@@ -206,8 +206,19 @@ with st.sidebar:
     st.caption(f"Predictions for **{PREDICT_YEAR}** counselling")
     st.markdown("---")
 
-    source = st.radio("Counselling source", ["JoSAA", "CSAB"],
-                      horizontal=True).lower()
+    source = st.radio(
+        "Counselling source",
+        ["JoSAA", "CSAB"],
+        horizontal=True,
+        help=(
+            "**JoSAA** (Joint Seat Allocation Authority): The main annual counselling "
+            "process for IITs, NITs, IIITs, and GFTIs. Open to both JEE Mains and "
+            "JEE Advanced rank holders.\n\n"
+            "**CSAB** (Central Seat Allocation Board): A supplementary round held after "
+            "JoSAA to fill vacant seats in NITs, IIITs, and GFTIs. Only for JEE Mains "
+            "candidates. Choose this if you missed JoSAA or want to try for remaining seats."
+        ),
+    ).lower()
     cfg = SOURCES[source]
 
     if source == "csab":
@@ -220,7 +231,14 @@ with st.sidebar:
         exam_label = st.radio(
             "Exam",
             ["JEE Mains  →  NIT / IIIT / GFTI", "JEE Advanced  →  IIT"],
-            help="JEE Advanced is exclusively for IIT admissions.",
+            help=(
+                "**JEE Mains → NIT / IIIT / GFTI**: Use your JEE Mains rank. "
+                "Covers National Institutes of Technology (NITs), Indian Institutes of "
+                "Information Technology (IIITs), and Government Funded Technical Institutes (GFTIs).\n\n"
+                "**JEE Advanced → IIT**: Use your JEE Advanced rank. "
+                "Exclusively for Indian Institutes of Technology (IITs). "
+                "You must have qualified JEE Advanced to use this option."
+            ),
         )
         exam_type = "advanced" if "Advanced" in exam_label else "mains"
 
@@ -262,9 +280,35 @@ with st.sidebar:
                 "**LA**: Ladakh. reserved for students domiciled in Ladakh.\n\n"
             ),
         )
-    seat_type = st.selectbox("Seat Type", SEAT_TYPES)
+    seat_type = st.selectbox(
+        "Seat Type",
+        SEAT_TYPES,
+        help=(
+            "Select the category that matches what is printed on your JEE rank card.\n\n"
+            "**OPEN**: General category, i.e. no reservation. Any candidate can compete.\n\n"
+            "**EWS**: Economically Weaker Section; for candidates with annual family "
+            "income below ₹8 lakh and no other reservation benefit.\n\n"
+            "**OBC-NCL**: Other Backward Classes (Non-Creamy Layer); for OBC candidates "
+            "whose family income is below the creamy layer limit (₹8 lakh/year).\n\n"
+            "**SC**: Scheduled Caste reservation.\n\n"
+            "**ST**: Scheduled Tribe reservation.\n\n"
+            "**(PwD)** variants: Person with Disability sub-quota within each category. "
+            "Select only if you have a valid PwD certificate from a recognised authority."
+        ),
+    )
 
-    gender_raw = st.radio("Gender", ["Gender-Neutral", "Female-only"])
+    gender_raw = st.radio(
+        "Gender",
+        ["Gender-Neutral", "Female-only"],
+        help=(
+            "**Gender-Neutral**: Seats open to candidates of all genders. "
+            "The vast majority of seats fall in this category.\n\n"
+            "**Female-only**: Supernumerary seats reserved exclusively for female candidates. "
+            "These are *extra* seats created to improve female enrolment. They do not reduce "
+            "seats available to others. If you are female, check both options separately "
+            "to see your full range of choices."
+        ),
+    )
     gender = (
         "Female-only (including Supernumerary)"
         if gender_raw == "Female-only"
@@ -349,10 +393,22 @@ student_rank = st.session_state.get("last_rank", rank)
 # Summary metrics
 counts = df["Category"].value_counts()
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Safe",  counts.get("safe",  0))
-c2.metric("Match", counts.get("match", 0))
-c3.metric("Reach", counts.get("reach", 0))
-c4.metric("Total", len(df))
+c1.metric(
+    "Safe", counts.get("safe", 0),
+    help="Your rank is comfortably below the predicted closing rank. High likelihood of getting a seat here.",
+)
+c2.metric(
+    "Match", counts.get("match", 0),
+    help="Your rank is close to the predicted closing rank. Moderate chance. Worth applying but not guaranteed.",
+)
+c3.metric(
+    "Reach", counts.get("reach", 0),
+    help="Your rank is slightly above the predicted closing rank. Lower probability, but possible if the cutoff relaxes compared to last year.",
+)
+c4.metric(
+    "Total", len(df),
+    help="Total number of college–program combinations matching your profile across all categories.",
+)
 
 export_cols = [
     "Category", "Institute", "Academic Program Name", "Quota", "Seat Type", "Gender",
@@ -441,22 +497,44 @@ with tab_table:
     )
     cov_pct = 95
     col_cfg = {
-        "Final Pred": st.column_config.NumberColumn("Final", format="%d"),
+        "Final Pred": st.column_config.NumberColumn(
+            "Final Pred",
+            format="%d",
+            help="The model's predicted closing rank for the final counselling round. "
+                 "Your rank must be below (numerically smaller than) this number for a realistic chance.",
+        ),
         "Lower":      st.column_config.NumberColumn(
                           f"Lower ({cov_pct}%)",
                           format="%d",
                           help=f"Lower bound of the {cov_pct}% prediction interval. "
-                               "Your rank below this means the slot is Safe."),
+                               "If your rank is below this number, the seat is categorised as Safe. "
+                               "The college is very likely to remain within reach."),
         "Upper":      st.column_config.NumberColumn(
                           f"Upper ({cov_pct}%)",
                           format="%d",
                           help=f"Upper bound of the {cov_pct}% prediction interval. "
-                               "Your rank above this means the slot is out of reach."),
-        "Years":      st.column_config.NumberColumn("Yrs",
-                          help="Years of historical data for this slot"),
-        "Seats":      st.column_config.NumberColumn("Seats",
-                          help="Total seats available in this slot for the prediction year"),
-        **{r: st.column_config.NumberColumn(r, format="%d") for r in round_cols},
+                               "If your rank is above this number, the seat is out of reach. "
+                               "The closing rank is unlikely to rise that high."),
+        "Years":      st.column_config.NumberColumn(
+            "Yrs",
+            help="Number of years of historical closing-rank data used to train the prediction for this slot. "
+                 "More years = more reliable prediction.",
+        ),
+        "Seats":      st.column_config.NumberColumn(
+            "Seats",
+            help="Total seats available in this college–program–quota–category combination for the current year.",
+        ),
+        **{r: st.column_config.NumberColumn(
+            r, format="%d",
+            help=f"Predicted closing rank for Round {r[1:]}. "
+                 "Closing ranks typically tighten (get smaller) in later rounds as floating candidates fill seats.",
+        ) for r in round_cols},
+    }
+
+    CAT_DESC = {
+        "safe":  "Your rank is comfortably below the predicted closing rank. High likelihood of admission.",
+        "match": "Your rank is close to the predicted closing rank. Moderate chance. Apply but have a backup.",
+        "reach": "Your rank is slightly above the predicted closing rank. Lower probability, but possible if cutoffs relax.",
     }
 
     for cat in ["safe", "match", "reach"]:
@@ -466,9 +544,10 @@ with tab_table:
         color = CAT_COLOR[cat]
         icon  = CAT_ICON[cat]
         st.markdown(
-            f"<h4 style='color:{color};margin-bottom:6px'>"
+            f"<h4 style='color:{color};margin-bottom:2px'>"
             f"{icon} {cat.upper()} &nbsp; <small>({len(subset)} options)</small>"
-            "</h4>",
+            "</h4>"
+            f"<p style='color:#666;font-size:0.85rem;margin-top:0;margin-bottom:6px'>{CAT_DESC[cat]}</p>",
             unsafe_allow_html=True,
         )
         st.dataframe(
