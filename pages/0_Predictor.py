@@ -189,7 +189,7 @@ _BRANCH_ABBRS = [
     # ── Data / AI / Interdisciplinary ──────────────────────────────────────────
     (r"Artificial Intelligence and Data Analytics", "AIDA"),
     (r"Artificial Intelligence and Data Engineering", "AIDE"),
-    (r"Artificial Intelligence and Data Science", "AIDS"),
+    (r"Artificial Intelligence and Data Science", "AI+DS"),
     (r"Artificial Intelligence and Machine Learning", "AIML"),
     (r"Artificial Intelligence", "AI"),
     (r"Data Science and Artificial Intelligence", "DSAI"),
@@ -202,6 +202,30 @@ _BRANCH_ABBRS = [
     (r"Interdisciplinary Sciences", "ISci"),
     (r"Industrial Internet of Things", "IIoT"),
     (r"Robotics and AI", "RAI"),
+    # ── Specialisation terms (appear after "with specialisation in" stripping) ──
+    (r"Cyber Security", "CyberSec"),
+    (r"Cyber Physical System", "CPS"),
+    (r"Quantum Technologies?", "Quantum"),
+    (r"VLSI and Embedded Systems?", "VLSIEmbedded"),
+    (r"VLSI Design", "VLSI"),
+    (r"Microelectronics and VLSI", "MicroVLSI"),
+    (r"Signal Processing and Communication", "SPC"),
+    (r"Design and Manufacturing", "D&M"),
+    (r"Advanced Manufacturing", "Adv.Mfg"),
+    (r"Product Design", "ProdDesign"),
+    (r"Power System", "PowerSys"),
+    (r"Embedded Systems?", "Embedded"),
+    (r"Wearable Electronics", "Wearable"),
+    (r"Rail Engineering", "Rail"),
+    (r"Transportation and Logistics", "TransLog"),
+    (r"Nano Science", "NanoSci"),
+    (r"Internet of Things", "IoT"),
+    (r"AI and ML", "AI+ML"),
+    (r"AI and Robotics", "AIR"),
+    (r"Communication Systems?", "CommSys"),
+    (r"Systems? Design", "SD"),
+    (r"Construction Technology and Management", "CTM"),
+    (r"Machine Learning", "ML"),
     # ── Other ──────────────────────────────────────────────────────────────────
     (r"Environmental Science and Engineering", "EnvSciE"),
     (r"Environmental Engineering", "EnvE"),
@@ -327,6 +351,31 @@ _DEGREE_PATTERNS = [
 def _abbreviate_branch(prog: str) -> str:
     """Abbreviate the branch name only, stripping the degree-type suffix."""
     branch = re.split(r"\s*\(\d+\s+Year", prog)[0].strip()
+
+    # Fix known typos in source data
+    branch = re.sub(r"\blntelligence\b", "Intelligence", branch)
+    branch = re.sub(r"\bIntelligenece\b", "Intelligence", branch, flags=re.IGNORECASE)
+
+    # Strip "B.Tech in / B. Tech. in" prefixes (Rail / Gati Shakti programmes)
+    branch = re.sub(r"^B\.?\s*Tech\.?\s+in\s+", "", branch, flags=re.IGNORECASE)
+
+    # "with specialization/minor/major in X [+ M.Tech...]" → "(X)"
+    branch = re.sub(
+        r"\s+with\s+(?:specialization|minor|major)\s+(?:in|of)\s+([^+]+?)(?:\s*\+.*)?$",
+        r" (\1)",
+        branch,
+        flags=re.IGNORECASE,
+    )
+    # "(with Specialization of X)" parenthetical variant
+    branch = re.sub(
+        r"\s*\(with\s+(?:specialization|minor|major)\s+(?:in|of)\s+(.+?)\)",
+        r" (\1)",
+        branch,
+        flags=re.IGNORECASE,
+    )
+
+    branch = re.sub(r"\s+", " ", branch).strip()
+
     for pattern, replacement in _BRANCH_ABBRS:
         branch = re.sub(pattern, replacement, branch, flags=re.IGNORECASE)
     return branch
