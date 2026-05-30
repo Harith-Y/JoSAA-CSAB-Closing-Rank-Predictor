@@ -509,6 +509,43 @@ class GPMLPEnsemble:
                             + (1.0 - self.blend_alpha) * mlp_preds[i])
         return preds
 
+    def predict_df_components(
+        self, df: pd.DataFrame
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Return (gp_preds, mlp_preds, gp_mask).
+
+        gp_mask[i] is True where a per-slot GP model was available.
+        For cold-start rows gp_preds[i] == mlp_preds[i].
+        Caller can blend: alpha * gp_preds + (1 - alpha) * mlp_preds.
+        """
+        mlp_preds = self._mlp.predict_df(df)
+        gp_preds  = mlp_preds.copy()
+        gp_mask   = np.zeros(len(df), dtype=bool)
+
+        if not self._gp_slots:
+            return gp_preds, mlp_preds, gp_mask
+
+        df_r     = df.reset_index(drop=True)
+        inst_arr = df_r[COL_INSTITUTE].values
+        prog_arr = df_r[COL_PROGRAM].values
+        quot_arr = df_r[COL_QUOTA].values
+        st_arr   = df_r[COL_SEAT_TYPE].values
+        gen_arr  = df_r[COL_GENDER].values
+        et_arr   = df_r[COL_EXAM_TYPE].values
+        rnd_arr  = df_r[COL_ROUND].values.astype(int)
+        yr_arr   = df_r[COL_YEAR].values.astype(int)
+
+        for i in range(len(df_r)):
+            sk = (inst_arr[i], prog_arr[i], quot_arr[i],
+                  st_arr[i],   gen_arr[i],  et_arr[i])
+            gp_m = self._gp_slots.get(sk)
+            if gp_m is not None:
+                gp_preds[i] = gp_m.predict_round(rnd_arr[i], yr_arr[i])
+                gp_mask[i]  = True
+
+        return gp_preds, mlp_preds, gp_mask
+
     def predict_round(self, slot_key: tuple, round_no: int, year: int) -> float:
         row = dict(zip(SLOT_COLS, slot_key))
         row.update({COL_YEAR: year, COL_ROUND: round_no})
@@ -537,7 +574,10 @@ class GPMLPEnsemble:
 def train(csv_path: str, model_path: str = MODEL_PATH,
           trend_model: str = DEFAULT_TREND_MODEL,
           normalize: bool = False,
-          tune_mlp: bool = False) -> dict:
+          tune_mlp: bool = False,
+          mlp_hidden: tuple | None = None,
+          mlp_dropout: float | None = None,
+          blend_alpha: float = 0.5) -> dict:
     """
     tune_mlp : when True and trend_model in ("mlp", "mlp_ensemble"), run a
                random hyperparameter search before final training and use the
@@ -571,10 +611,10 @@ def train(csv_path: str, model_path: str = MODEL_PATH,
         }
         print(f"Trained GlobalMLPModel  ({len(slots):,} slot adapters) -> {model_path}")
     elif trend_model == "mlp_ensemble":
-        gm = GPMLPEnsemble()
+        gm = GPMLPEnsemble(blend_alpha=blend_alpha)
         gm.fit(df,
-               mlp_hidden=mlp_cfg.get("hidden",     (256, 128, 64)),
-               mlp_dropout=mlp_cfg.get("dropout",   0.2),
+               mlp_hidden=mlp_cfg.get("hidden",     mlp_hidden  or (256, 128, 64)),
+               mlp_dropout=mlp_cfg.get("dropout",   mlp_dropout or 0.2),
                mlp_lr=mlp_cfg.get("lr",             1e-3),
                mlp_batch_size=mlp_cfg.get("batch_size", 4096))
         slots = {key: gm.make_slot_adapter(key) for key in gm.slot_stats}

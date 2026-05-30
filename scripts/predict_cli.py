@@ -53,7 +53,10 @@ def cmd_train(args):
     trend_model = args.trend_model or cfg.get("trend_model", DEFAULT_TREND_MODEL)
     train(cfg["csv"], model_path=cfg["model_path"], trend_model=trend_model,
           normalize=args.normalize_ranks,
-          tune_mlp=getattr(args, "tune_mlp_hparams", False))
+          tune_mlp=getattr(args, "tune_mlp_hparams", False),
+          mlp_hidden=cfg.get("mlp_hidden"),
+          mlp_dropout=cfg.get("mlp_dropout"),
+          blend_alpha=cfg.get("blend_alpha", 0.5))
 
 
 def cmd_backtest(args):
@@ -86,6 +89,52 @@ def cmd_tune(args):
         print(f"\nSaved ensemble_weight={best_w} into {cfg['model_path']}")
     elif args.save:
         print(f"\nModel not found at {cfg['model_path']}: run train first, then tune --save.")
+
+
+def _save_blend_alpha(best_alpha: float, model_path: str) -> None:
+    import pickle
+    if not os.path.exists(model_path):
+        print(f"\nModel not found at {model_path}: run train first, then tune-alpha --save.")
+        return
+    with open(model_path, "rb") as f:
+        model = pickle.load(f)
+    gm = model.get("global_model")
+    if gm is not None and hasattr(gm, "blend_alpha"):
+        gm.blend_alpha = best_alpha
+        with open(model_path, "wb") as f:
+            pickle.dump(model, f)
+        print(f"\nSaved blend_alpha={best_alpha} into {model_path}")
+    else:
+        print("\nModel is not a GPMLPEnsemble. blend_alpha not applicable.")
+
+
+def cmd_tune_alpha(args):
+    from pipeline.evaluate import tune_blend_alpha, tune_blend_alpha_loo
+
+    cfg         = _resolve_source(args.source)
+    mlp_hidden  = cfg.get("mlp_hidden",  (256, 128, 64))
+    mlp_dropout = cfg.get("mlp_dropout", 0.2)
+
+    if args.loo:
+        result     = tune_blend_alpha_loo(
+            cfg["csv"],
+            rounds      = cfg["rounds"],
+            mlp_hidden  = mlp_hidden,
+            mlp_dropout = mlp_dropout,
+        )
+        best_alpha = result["best_alpha"]
+    else:
+        result     = tune_blend_alpha(
+            cfg["csv"],
+            val_year    = args.val_year,
+            rounds      = cfg["rounds"],
+            mlp_hidden  = mlp_hidden,
+            mlp_dropout = mlp_dropout,
+        )
+        best_alpha = result["best_alpha"]
+
+    if args.save:
+        _save_blend_alpha(best_alpha, cfg["model_path"])
 
 
 def cmd_predict(args):
@@ -231,9 +280,24 @@ def main():
     tn.add_argument("--save",       action="store_true",
                     help="Write best w into the model pickle for automatic use")
 
+    # tune-alpha
+    ta = sub.add_parser("tune-alpha",
+                        help="Find optimal GP-MLP blend_alpha via held-out validation "
+                             "(mlp_ensemble models only)")
+    ta.add_argument("--source",   **source_kwargs)
+    ta.add_argument("--val-year", dest="val_year", type=int, default=None,
+                    help="Single validation year (default: most recent). "
+                         "Ignored when --loo is set.")
+    ta.add_argument("--loo",      action="store_true",
+                    help="Multi-year leave-one-out calibration: find best alpha on "
+                         "each year independently, then deploy the rounded average.")
+    ta.add_argument("--save",     action="store_true",
+                    help="Write best blend_alpha into the model pickle for automatic use")
+
     args = parser.parse_args()
     {"train": cmd_train, "backtest": cmd_backtest,
-     "predict": cmd_predict, "tune": cmd_tune}[args.cmd](args)
+     "predict": cmd_predict, "tune": cmd_tune,
+     "tune-alpha": cmd_tune_alpha}[args.cmd](args)
 
 
 if __name__ == "__main__":

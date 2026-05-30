@@ -65,6 +65,9 @@ def backtest(
     quiet:       bool = False,
     _df:         pd.DataFrame | None = None,
     stratify:    bool = True,
+    blend_alpha: float = 0.5,
+    mlp_hidden:  tuple = (256, 128, 64),
+    mlp_dropout: float = 0.2,
 ) -> dict:
     def log(*args, **kwargs):
         if not quiet:
@@ -105,8 +108,8 @@ def backtest(
         log("  Batch predictions computed.")
     elif trend_model == "mlp_ensemble":
         from .train import GPMLPEnsemble
-        _global_mlp = GPMLPEnsemble()
-        _global_mlp.fit(train_df)
+        _global_mlp = GPMLPEnsemble(blend_alpha=blend_alpha)
+        _global_mlp.fit(train_df, mlp_hidden=mlp_hidden, mlp_dropout=mlp_dropout)
         _pred_arr  = _global_mlp.predict_df(test_df)
         _mlp_preds = pd.Series(_pred_arr, index=test_df.index)
         log("  Batch predictions computed.")
@@ -324,6 +327,193 @@ def tune_ensemble_weight(
     log(f"  Improvement over default: {improvement:.1f} rank positions")
 
     return {"best_w": best_w, "val_year": val_year, "results": results}
+
+
+def tune_blend_alpha(
+    csv_path:    str,
+    val_year:    int | None = None,
+    rounds:      list[int] | None = None,
+    mlp_hidden:  tuple = (256, 128, 64),
+    mlp_dropout: float = 0.2,
+    alpha_grid:  list[float] | None = None,
+    quiet:       bool = False,
+    _df:         pd.DataFrame | None = None,
+) -> dict:
+    """
+    Find the optimal GP-MLP blend_alpha by sweeping over alpha_grid on a
+    held-out year.  The ensemble is trained once; GP and MLP predictions are
+    stored separately so the sweep is free (no retraining per candidate alpha).
+
+    Returns:
+        {
+          "best_alpha": float,
+          "val_year":   int,
+          "results":    pd.DataFrame  (index=alpha, columns: overall_mae, R1, ...),
+        }
+    """
+    def log(*args, **kwargs):
+        if not quiet:
+            print(*args, **kwargs)
+
+    from .train import GPMLPEnsemble, SLOT_COLS
+    from .config import COL_INSTITUTE, COL_PROGRAM, COL_QUOTA, COL_SEAT_TYPE, COL_GENDER, COL_EXAM_TYPE
+
+    if alpha_grid is None:
+        alpha_grid = [round(i * 0.1, 1) for i in range(11)]  # 0.0 … 1.0
+
+    df = _df if _df is not None else load(csv_path)
+    all_years = sorted(df[COL_YEAR].unique())
+
+    if val_year is None:
+        val_year = all_years[-1]
+
+    if rounds is None:
+        rounds = ALL_ROUNDS
+
+    train_df = df[df[COL_YEAR] < val_year]
+    val_df   = df[df[COL_YEAR] == val_year]
+
+    log(f"Alpha tune  |  train: {sorted(train_df[COL_YEAR].unique())}  |  val: {val_year}")
+    log(f"  arch={mlp_hidden}, dropout={mlp_dropout}  |  alpha grid: {alpha_grid}")
+
+    ens = GPMLPEnsemble(blend_alpha=0.5)
+    ens.fit(train_df, mlp_hidden=mlp_hidden, mlp_dropout=mlp_dropout)
+
+    gp_preds, mlp_preds, _ = ens.predict_df_components(val_df)
+    gp_series  = pd.Series(gp_preds,  index=val_df.index)
+    mlp_series = pd.Series(mlp_preds, index=val_df.index)
+
+    # Collect (actual, gp_pred, mlp_pred) per valid (slot, round) pair
+    rows_act, rows_gp, rows_mlp = [], [], []
+    round_tags: list[int] = []
+    for key, grp in val_df.groupby(SLOT_COLS, sort=False):
+        if tuple(key) not in ens.slot_stats:
+            continue
+        for _, row in grp.iterrows():
+            r = int(row[COL_ROUND])
+            if r not in rounds:
+                continue
+            rows_act.append(float(row[COL_CLOSE_RANK]))
+            rows_gp.append(float(gp_series.loc[row.name]))
+            rows_mlp.append(float(mlp_series.loc[row.name]))
+            round_tags.append(r)
+
+    act_arr = np.array(rows_act)
+    gp_arr  = np.maximum(1.0, np.array(rows_gp))
+    mlp_arr = np.maximum(1.0, np.array(rows_mlp))
+    round_arr = np.array(round_tags)
+
+    log(f"  Valid (slot, round) pairs: {len(act_arr):,}")
+
+    table_rows = []
+    for alpha in alpha_grid:
+        blended = np.maximum(1.0, alpha * gp_arr + (1.0 - alpha) * mlp_arr)
+        row = {"alpha": alpha,
+               "overall_mae": float(mean_absolute_error(act_arr, blended))}
+        for r in rounds:
+            mask = round_arr == r
+            if mask.any():
+                row[f"R{r}"] = float(mean_absolute_error(act_arr[mask], blended[mask]))
+        table_rows.append(row)
+
+    results   = pd.DataFrame(table_rows).set_index("alpha")
+    best_alpha = float(results["overall_mae"].idxmin())
+
+    log(f"\n{'='*55}")
+    log(f"  Blend-alpha sweep  |  val year {val_year}")
+    log(f"{'='*55}")
+    r_cols = [c for c in results.columns if c.startswith("R")]
+    log(results[["overall_mae"] + r_cols].to_string())
+    log(f"\n  Best alpha = {best_alpha}  "
+        f"(overall MAE {results.loc[best_alpha, 'overall_mae']:.1f})")
+    log(f"  Default alpha = 0.5  "
+        f"(overall MAE {results.loc[0.5, 'overall_mae']:.1f})")
+    improvement = results.loc[0.5, "overall_mae"] - results.loc[best_alpha, "overall_mae"]
+    log(f"  Improvement over default: {improvement:.1f} rank positions")
+
+    return {"best_alpha": best_alpha, "val_year": val_year, "results": results}
+
+
+def tune_blend_alpha_loo(
+    csv_path:    str,
+    cal_years:   list[int] | None = None,
+    rounds:      list[int] | None = None,
+    mlp_hidden:  tuple = (256, 128, 64),
+    mlp_dropout: float = 0.2,
+    alpha_grid:  list[float] | None = None,
+    quiet:       bool = False,
+) -> dict:
+    """
+    Multi-year leave-one-out blend_alpha calibration.
+
+    For each year in cal_years, trains on all preceding years and finds the
+    best alpha.  The recommended deployed alpha is the average across years,
+    rounded to the nearest grid step.
+
+    cal_years defaults to all years except the most recent (held back as the
+    true test year).
+
+    Returns:
+        {
+          "best_alpha":    float,   # rounded average — recommended for deployment
+          "per_year":      dict,    # {year: best_alpha}
+          "per_year_mae":  dict,    # {year: best_mae}
+          "alpha_grid":    list,
+        }
+    """
+    def log(*args, **kwargs):
+        if not quiet:
+            print(*args, **kwargs)
+
+    if alpha_grid is None:
+        alpha_grid = [round(i * 0.1, 1) for i in range(11)]
+    step = alpha_grid[1] - alpha_grid[0]
+
+    df = load(csv_path)
+    all_years = sorted(df[COL_YEAR].unique())
+
+    if cal_years is None:
+        cal_years = all_years[:-1]   # all except the most recent test year
+
+    # require at least 2 training years before each cal year
+    cal_years = [y for y in cal_years if sum(1 for yr in all_years if yr < y) >= 2]
+
+    log(f"\nLOO alpha calibration  |  cal years: {cal_years}")
+    log(f"  arch={mlp_hidden}, dropout={mlp_dropout}  |  grid: {alpha_grid}")
+
+    per_year: dict[int, float] = {}
+    per_year_mae: dict[int, float] = {}
+
+    for year in cal_years:
+        log(f"\n--- Calibration year {year} ---")
+        result = tune_blend_alpha(
+            csv_path, val_year=year, rounds=rounds,
+            mlp_hidden=mlp_hidden, mlp_dropout=mlp_dropout,
+            alpha_grid=alpha_grid, quiet=quiet,
+            _df=df,
+        )
+        per_year[year]     = result["best_alpha"]
+        per_year_mae[year] = float(result["results"].loc[result["best_alpha"], "overall_mae"])
+
+    avg_raw  = float(np.mean(list(per_year.values())))
+    # Round to the nearest grid step
+    best_alpha = round(round(avg_raw / step) * step, 10)
+    best_alpha = min(alpha_grid, key=lambda a: abs(a - best_alpha))
+
+    log(f"\n{'='*55}")
+    log(f"  LOO alpha calibration summary")
+    log(f"{'='*55}")
+    log(f"  {'Year':>6}  {'Best α':>8}  {'MAE at best α':>15}")
+    for y in cal_years:
+        log(f"  {y:>6}  {per_year[y]:>8.1f}  {per_year_mae[y]:>15.1f}")
+    log(f"\n  Raw average α = {avg_raw:.3f}  →  recommended α = {best_alpha}")
+
+    return {
+        "best_alpha":   best_alpha,
+        "per_year":     per_year,
+        "per_year_mae": per_year_mae,
+        "alpha_grid":   alpha_grid,
+    }
 
 
 if __name__ == "__main__":

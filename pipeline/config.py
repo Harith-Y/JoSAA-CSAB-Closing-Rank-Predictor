@@ -63,22 +63,28 @@ import os
 
 SOURCES = {
     "josaa": {
-        "csv":        "josaa_ranks.csv",
+        "csv":        os.path.join(os.path.dirname(__file__), "..", "data", "josaa_ranks.csv"),
         "model":      "josaa_model.pkl",
         "round_col":  "Round",
         "rounds":     JOSAA_ROUNDS,
-        "trend_model": "gp_rbf",
+        "trend_model": "mlp_ensemble",  # GP-MLP ensemble (tuned arch) beats GP RBF avg 2,608 vs 2,667
+        "mlp_hidden":  (512, 256, 128),
+        "mlp_dropout": 0.15,
+        "blend_alpha": 0.5,             # confirmed optimal on 2024 validation
         # safe ≤ 0.80xpred, match ≤ 1.00xpred, reach ≤ 1.20xpred
         "safe_threshold":  0.80,
         "reach_threshold": 1.20,
         "disclaimer": None,
     },
     "csab": {
-        "csv":        "csab_ranks.csv",
+        "csv":        os.path.join(os.path.dirname(__file__), "..", "data", "csab_ranks.csv"),
         "model":      "csab_model.pkl",
         "round_col":  "Special Round",
         "rounds":     CSAB_ROUNDS,
         "trend_model": "mlp_ensemble",   # GP-MLP ensemble cuts MAE ~15% vs pure GP RBF
+        "mlp_hidden":  (256, 128, 64),   # default arch (CSAB dataset is smaller)
+        "mlp_dropout": 0.2,
+        "blend_alpha": 0.7,              # LOO-calibrated (2023-2024 avg): more robust than single-year 0.9
         # Widen thresholds - CSAB MAE (~42k) is still ~15x JOSAA MAE (~3k),
         # so tight safe/reach bands would be misleading.
         "safe_threshold":  0.60,
