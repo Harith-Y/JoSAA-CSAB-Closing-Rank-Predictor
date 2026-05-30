@@ -499,6 +499,32 @@ def _short_institute_name(inst: str) -> str:
     return inst
 
 
+_WELL_KNOWN_INST_RE = re.compile(
+    r"^("
+    r"Indian Institute of Technology|"
+    r"Indian Institute of Information Technology|"
+    r"International Institute of Information Technology|"
+    r"National Institute of Technology|"
+    r"Dr\.?\s*B\.?\s*R\.?\s*Ambedkar National Institute of Technology|"
+    r"Malaviya National Institute of Technology|"
+    r"Maulana Azad National Institute of Technology|"
+    r"Motilal Nehru National Institute of Technology|"
+    r"Sardar Vallabhbhai National Institute of Technology|"
+    r"Visvesvaraya National Institute of Technology|"
+    r"Indian Institute of Engineering Science and Technology|"
+    r"Indian Institute of Science Education and Research|"
+    r"Indian Institute of Science\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _display_institute_name(inst: str, abbr: str) -> str:
+    """Use abbreviated name for well-known institutes; full name for all others."""
+    clean = re.sub(r"\s*\([^)]*\)", "", inst).strip()
+    return abbr if _WELL_KNOWN_INST_RE.match(clean) else inst
+
+
 def _slot_label(row: pd.Series) -> str:
     inst = _short_institute_name(row["Institute"])
     prog = _display_program_name(row["Academic Program Name"])
@@ -827,6 +853,7 @@ student_rank = st.session_state.get("last_rank", rank)
 
 df["Program"]   = df["Academic Program Name"].apply(_display_program_name)
 df["InstAbbr"]  = df["Institute"].apply(_short_institute_name)
+df["InstDisplay"] = df.apply(lambda r: _display_institute_name(r["Institute"], r["InstAbbr"]), axis=1)
 
 # Summary metrics
 counts = df["Category"].value_counts()
@@ -1011,7 +1038,7 @@ with tab_table:
     has_seats     = "Seats" in df.columns and df["Seats"].notna().any()
     has_intervals = "Lower" in df.columns and "Upper" in df.columns
     display_cols = (
-        ["Institute", "Program"]
+        ["InstDisplay", "Program"]
         + round_cols
         + ["Final Pred"]
         + (["Lower", "Upper"] if has_intervals else [])
@@ -1020,7 +1047,7 @@ with tab_table:
     )
     cov_pct = 95
     col_cfg = {
-        "Institute": st.column_config.TextColumn(
+        "InstDisplay": st.column_config.TextColumn(
             "Institute",
             width="large",
         ),
