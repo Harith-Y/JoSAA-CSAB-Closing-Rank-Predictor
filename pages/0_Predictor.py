@@ -46,10 +46,317 @@ def load_model_cached(source: str):
 
 
 # Helpers
-def _slot_label(row: pd.Series) -> str:
-    inst = _short_institute_name(row["Institute"])
-    prog = _short_program_name(row["Academic Program Name"])
-    return f"{inst} · {prog}"
+_BRANCH_ABBRS = [
+    # ── Computer / IT ──────────────────────────────────────────────────────────
+    (r"Computer Science and Engineering", "CSE"),
+    (r"Computer Science & Engineering", "CSE"),
+    (r"Computer Science Engineering", "CSE"),
+    (r"Computer Science and Artificial Intelligence", "CSAI"),
+    (r"Computer Science and Business", "CSB"),
+    (r"Computer Science and Technology", "CST"),
+    (r"Computer Science", "CS"),
+    (r"Computer Engineering", "CE"),
+    (r"Information Technology", "IT"),
+    (r"Computational Engineering", "CompE"),
+    (r"Computational Mathematics", "CM"),
+    (r"Computational and Data Science", "CDS"),
+    # ── Electronics ────────────────────────────────────────────────────────────
+    (r"Electronics and Communication Engineering", "ECE"),
+    (r"Electronics & Communication Engineering", "ECE"),
+    (r"Electronics and Electrical Communication Engineering", "EECE"),
+    (r"Electronics and Electrical Engineering", "EEE"),
+    (r"Electronics & Electrical Engineering", "EEE"),
+    (r"Electrical and Electronics Engineering", "EEE"),
+    (r"Electronics and Instrumentation Engineering", "EIE"),
+    (r"Electrical and Instrumentation Engineering", "EIE"),
+    (r"Electronics and Telecommunication Engineering", "ETE"),
+    (r"Electronics and VLSI Engineering", "EVLSIE"),
+    (r"Electronics System Engineering", "ESE"),
+    (r"Electronics Engineering", "ElecE"),
+    (r"Microelectronics.*VLSI", "MVLSI"),
+    (r"Integrated Circuit Design", "ICD"),
+    # ── Electrical ─────────────────────────────────────────────────────────────
+    (r"Electrical Engineering", "EE"),
+    (r"Electronic Engineering", "ElecE"),
+    # ── Mechanical / Manufacturing ─────────────────────────────────────────────
+    (r"Mechanical Engineering", "ME"),
+    (r"Mechatronics and Automation Engineering", "MechT"),
+    (r"Mechatronics Engineering", "MechT"),
+    (r"Mechatronics", "MechT"),
+    (r"Manufacturing Science and Engineering", "MfgE"),
+    (r"Manufacturing Engineering", "MfgE"),
+    (r"Production and Industrial Engineering", "PIE"),
+    (r"Production Engineering", "ProdE"),
+    (r"Industrial and Production Engineering", "IPE"),
+    (r"Industrial and Systems Engineering", "ISE"),
+    (r"Industrial Engineering and Operations Research", "IEOR"),
+    (r"Industrial Engineering", "IE"),
+    (r"Engineering Design", "ED"),
+    (r"Quality Engineering Design and Manufacturing", "QEDM"),
+    # ── Civil / Architecture ───────────────────────────────────────────────────
+    (r"Civil and Environmental Engineering", "CEE"),
+    (r"Civil and Infrastructure Engineering", "CIE"),
+    (r"Civil Engineering", "CE"),
+    (r"Architecture and Planning", "AP"),
+    (r"Architecture, Town and Regional Planning", "ATRP"),
+    (r"Architecture", "Arch"),
+    (r"Planning", "Planning"),
+    # ── Chemical / Materials ───────────────────────────────────────────────────
+    (r"Chemical and Biochemical Engineering", "CBE"),
+    (r"Chemical Engineering \(Plastic and Polymer\)", "CEPP"),
+    (r"Chemical Engineering", "ChE"),
+    (r"Chemical Science and Technology", "ChST"),
+    (r"Chemical Sciences?", "ChemSci"),
+    (r"Chemical Technology", "ChemT"),
+    (r"Chemistry", "Chem"),
+    (r"Metallurgical and Materials Engineering", "MetMatE"),
+    (r"Metallurgical Engineering and Materials Science", "MetMatE"),
+    (r"Metallurgy and Materials Engineering", "MetMatE"),
+    (r"Metallurgical Engineering", "MetE"),
+    (r"Mineral and Metallurgical Engineering", "MinMetE"),
+    (r"Materials and Metallurgical Engineering", "MatME"),
+    (r"Materials Science and Metallurgical Engineering", "MSME"),
+    (r"Materials Science and Engineering", "MatSciE"),
+    (r"Materials Science and Technology", "MatSciT"),
+    (r"Materials Engineering", "MatE"),
+    (r"Material Science and Engineering", "MatSciE"),
+    (r"Material Science", "MatSci"),
+    (r"Polymer Science and Engineering", "PolyE"),
+    (r"Polymer Science and Technology", "PolyT"),
+    (r"Rubber Technology", "RT"),
+    (r"Ceramic Engineering", "CerE"),
+    # ── Aerospace / Ocean / Naval ──────────────────────────────────────────────
+    (r"Aeronautical Engineering", "AeroE"),
+    (r"Aerospace Engineering", "AE"),
+    (r"Naval Architecture and Ocean Engineering", "NAOE"),
+    (r"Ocean Engineering and Naval Architecture", "OENA"),
+    (r"Ocean Engineering", "OE"),
+    (r"Naval Architecture", "NA"),
+    (r"Space Science and Engineering", "SpaceE"),
+    (r"Space Sciences and Engineering", "SpaceE"),
+    # ── Mining / Petroleum / Energy ────────────────────────────────────────────
+    (r"Mining Machinery Engineering", "MinMachE"),
+    (r"Mining Safety Engineering", "MSE"),
+    (r"Mining Engineering", "MineE"),
+    (r"Mineral Engineering", "MineE"),
+    (r"Petroleum Engineering", "PetroE"),
+    (r"Nuclear Engineering", "NucE"),
+    (r"Energy and Electrical Vehicle Engineering", "EEEV"),
+    (r"Energy Engineering", "EnergyE"),
+    # ── Bio / Agriculture / Food ───────────────────────────────────────────────
+    (r"Biochemical Engineering and Biotechnology", "BEBT"),
+    (r"Biochemical Engineering", "BioChemE"),
+    (r"Bioengineering", "BioE"),
+    (r"Biological Engineering", "BioE"),
+    (r"Biological Sciences? and Bioengineering", "BSBE"),
+    (r"Biosciences? and Bioengineering", "BBE"),
+    (r"Biological Sciences?", "BioSci"),
+    (r"Biomedical Engineering", "BME"),
+    (r"Bio Medical Engineering", "BME"),
+    (r"Bio Engineering", "BioE"),
+    (r"Biotechnology and Biochemical Engineering", "BT+BioChmE"),
+    (r"Biotechnology and Bioinformatics", "BT+BioInf"),
+    (r"Biotechnology", "BT"),
+    (r"Bio Technology", "BT"),
+    (r"Agricultural and Food Engineering", "AgriFood E"),
+    (r"Agricultural Engineering", "AgriE"),
+    (r"Food Engineering and Technology", "FoodET"),
+    (r"Food Process Engineering", "FoodProcE"),
+    (r"Food Technology and Management", "FTM"),
+    (r"Food Technology", "FoodT"),
+    (r"Pharmaceutical Engineering & Technology", "PharmET"),
+    (r"Pharmaceutical Engineering", "PharmE"),
+    (r"Pharmaceutics", "Pharm"),
+    (r"Dairy Engineering", "DairyE"),
+    # ── Mathematics / Physics / Statistics ─────────────────────────────────────
+    (r"Mathematics and Computing", "MnC"),
+    (r"Mathematics & Computing", "MnC"),
+    (r"Mathematics and Data Science", "MDS"),
+    (r"Mathematics and Scientific Computing", "MSC"),
+    (r"Mathematics Computing Technology", "MnCT"),
+    (r"Applied Mathematics", "AM"),
+    (r"Quantitative Economics.*Data Science", "QEDS"),
+    (r"Statistics and Data Science", "SDS"),
+    (r"Mathematics", "Maths"),
+    (r"Physics and Computational Engineering", "PCE"),
+    (r"Engineering Physics", "EngPhys"),
+    (r"Applied Geophysics", "AGP"),
+    (r"Exploration Geophysics", "EG"),
+    (r"Geophysical Technology", "GeophysT"),
+    (r"Applied Geology", "AGL"),
+    (r"Geological Technology", "GeoT"),
+    (r"Physics", "Physics"),
+    # ── Data / AI / Interdisciplinary ──────────────────────────────────────────
+    (r"Artificial Intelligence and Data Analytics", "AIDA"),
+    (r"Artificial Intelligence and Data Engineering", "AIDE"),
+    (r"Artificial Intelligence and Data Science", "AIDS"),
+    (r"Artificial Intelligence and Machine Learning", "AIML"),
+    (r"Artificial Intelligence", "AI"),
+    (r"Data Science and Artificial Intelligence", "DSAI"),
+    (r"Data Science and Engineering", "DSE"),
+    (r"Data Science", "DS"),
+    (r"Instrumentation and Biomedical Engineering", "IBME"),
+    (r"Instrumentation and Control Engineering", "InstrCE"),
+    (r"Instrumentation Engineering", "InstrE"),
+    (r"Engineering Science", "EngSci"),
+    (r"Interdisciplinary Sciences", "ISci"),
+    (r"Industrial Internet of Things", "IIoT"),
+    (r"Robotics and AI", "RAI"),
+    # ── Other ──────────────────────────────────────────────────────────────────
+    (r"Environmental Science and Engineering", "EnvSciE"),
+    (r"Environmental Engineering", "EnvE"),
+    (r"Textile Technology", "TT"),
+    (r"Textile Engineering", "TE"),
+    (r"Carpet and Textile Technology", "CTT"),
+    (r"Fashion and Apparel Engineering", "FashionE"),
+    (r"Handloom and Textile Technology", "HTT"),
+    (r"Printing and Packaging Technology", "PPT"),
+    (r"Industrial Chemistry", "IndChem"),
+    (r"Industrial Design", "IndDesign"),
+    (r"Design Engineering", "DE"),
+    (r"Bachelor of Design", "B.Des"),
+    (r"Design", "Design"),
+    (r"Economics", "Econ"),
+    (r"Earth Sciences?", "ES"),
+    (r"Life Science", "LS"),
+    (r"Physical Science", "PS"),
+    (r"Animation and VFX", "AVFX"),
+    (r"Smart Manufacturing", "SM"),
+    (r"Digital Agriculture", "DA"),
+]
+
+# Search-query aliases: what user types → what to search in Program + raw name.
+# Used when the typed code isn't a substring of either the Program column or the raw name.
+_PROG_FILTER_ALIASES = {
+    # Branch shortcuts
+    "OE":     "OE",            # Ocean Engineering
+    "NA":     "NA",            # Naval Architecture
+    "NAOE":   r"NAOE|OENA",    # both orderings of Naval Arch + Ocean Engg
+    "OENA":   r"NAOE|OENA",
+    "NE":     "NucE",          # Nuclear Engineering
+    "NUC":    "Nuclear",
+    "BME":    "BME",           # Biomedical Engineering
+    "METE":   "MetE",          # Metallurgical Engineering
+    "MET":    "Metallurg",
+    "MINE":   "MineE",         # Mining Engineering
+    "PETRO":  "PetroE",        # Petroleum Engineering
+    "PETE":   "Petroleum",
+    "AE":     "AE",            # Aerospace Engineering
+    "AERO":   "Aero",          # Aerospace or Aeronautical
+    "MECHAT": "MechT",         # Mechatronics
+    "IE":     "IE",            # Industrial Engineering
+    "PIE":    "PIE",           # Production & Industrial Engineering
+    # Degree shortcuts
+    "DUAL":       r"\+|Integrated|Dual",   # dual = integrated (both are 5Y combined degrees)
+    "INT":        r"\+|Integrated|Dual",
+    "INTEGRATED": r"\+|Integrated|Dual",
+    "BTECH":  "B.Tech",
+    "MTECH":  "M.Tech",
+    "BARCH":  "B.Arch",
+    # Subject shortcuts
+    "MECH":   "Mechanical",    # ME in Program, but user may type MECH
+    "CHEM":   "Chemical",      # ChE in Program, but user may type CHEM
+    "ELEC":   "Electrical",
+    "COMP":   "Computer",
+    "ENV":    "Environmental",
+    "GEO":    "Geo",           # Geology, Geophysics, Geotechnical
+    "BIO":    "Bio",           # Bio-related programs
+    "ML":     "Machine Learning",
+    "IOT":    "Internet of Things",
+    "VLSI":   "VLSI",
+    "MFG":    "Manufacturing",
+    "PHARMA": "Pharmaceut",
+    "FOOD":   "Food",
+    "TEXT":   "Textile",
+    "SPACE":  "Space",
+    "DS":     "DS",
+    "AI":     "AI",
+    "IT":     "IT",
+    "CE":     r"\bCE\b|CompE",  # Civil Engineering AND Computer Engineering
+    "CSE":    "CSE",
+    "ECE":    "ECE",
+    "EEE":    "EEE",
+}
+
+_DEGREE_PATTERNS = [
+    (r"(\d+)\s+Years?.*B\.?\s*Tech\.?\s*/\s*B\.?\s*Tech\.?\s*\(Hons",
+     lambda m: f"{m.group(1)}Y B.Tech (Hons.)"),
+    (r"(\d+)\s+Years?.*Bachelor and Master of Technology",
+     lambda m: f"{m.group(1)}Y B.Tech+M.Tech"),
+    (r"(\d+)\s+Years?.*Bachelor and Master of Pharmaceutics",
+     lambda m: f"{m.group(1)}Y B.Pharm+M.Pharm"),
+    (r"(\d+)\s+Years?.*Bachelor of Science and Master of Science",
+     lambda m: f"{m.group(1)}Y B.Sc+M.Sc"),
+    (r"(\d+)\s+Years?.*Bachelor of Science and MBA",
+     lambda m: f"{m.group(1)}Y B.Sc+MBA"),
+    (r"(\d+)\s+Years?.*Bachelor of Technology and MBA",
+     lambda m: f"{m.group(1)}Y B.Tech+MBA"),
+    (r"(\d+)\s+Years?.*B\.Tech\.\s*\+\s*M\.Tech\./MS",
+     lambda m: f"{m.group(1)}Y B.Tech+M.Tech/MS"),
+    (r"(\d+)\s+Years?.*Integrated B\.?\s*Tech\.? and M\.?\s*Tech\.?/MBA",
+     lambda m: f"{m.group(1)}Y B.Tech+M.Tech/MBA"),
+    (r"(\d+)\s+Years?.*Integrated B\.?\s*Tech\.? and MBA",
+     lambda m: f"{m.group(1)}Y B.Tech+MBA"),
+    (r"(\d+)\s+Years?.*Integrated B\.?\s*Tech\.? and M\.?\s*Tech",
+     lambda m: f"{m.group(1)}Y B.Tech+M.Tech"),
+    (r"(\d+)\s+Years?.*Integrated Bachelor of Science.Master of Science",
+     lambda m: f"{m.group(1)}Y B.Sc+M.Sc"),
+    (r"(\d+)\s+Years?.*Integrated Masters? in Technology",
+     lambda m: f"{m.group(1)}Y M.Tech (Int.)"),
+    (r"(\d+)\s+Years?.*Integrated Master of Technology",
+     lambda m: f"{m.group(1)}Y M.Tech (Int.)"),
+    (r"(\d+)\s+Years?.*Integrated Master of Science",
+     lambda m: f"{m.group(1)}Y M.Sc (Int.)"),
+    (r"(\d+)\s+Years?.*Bachelor of Architecture",
+     lambda m: f"{m.group(1)}Y B.Arch"),
+    (r"(\d+)\s+Years?.*Bachelor of Technology",
+     lambda m: f"{m.group(1)}Y B.Tech"),
+    (r"(\d+)\s+Years?.*Bachelor of Science",
+     lambda m: f"{m.group(1)}Y B.Sc"),
+    (r"(\d+)\s+Years?.*Bachelor of Planning",
+     lambda m: f"{m.group(1)}Y B.Plan"),
+    (r"(\d+)\s+Years?.*Bachelor of Design",
+     lambda m: f"{m.group(1)}Y B.Des"),
+    (r"(\d+)\s+Years?.*Bachelor of Pharmaceutics",
+     lambda m: f"{m.group(1)}Y B.Pharm"),
+    (r"(\d+)\s+Years?.*Bachelor of Engineering",
+     lambda m: f"{m.group(1)}Y B.E."),
+]
+
+
+def _abbreviate_branch(prog: str) -> str:
+    """Abbreviate the branch name only, stripping the degree-type suffix."""
+    branch = re.split(r"\s*\(\d+\s+Year", prog)[0].strip()
+    for pattern, replacement in _BRANCH_ABBRS:
+        branch = re.sub(pattern, replacement, branch, flags=re.IGNORECASE)
+    return branch
+
+
+def _degree_abbr(prog: str) -> str:
+    """Extract and abbreviate the degree-type label from a full program name."""
+    for pattern, fmt in _DEGREE_PATTERNS:
+        m = re.search(pattern, prog, re.IGNORECASE)
+        if m:
+            return fmt(m)
+    return ""
+
+
+def _display_program_name(prog: str) -> str:
+    """Abbreviated branch + short degree label for table display and filtering."""
+    branch = _abbreviate_branch(prog)
+    degree = _degree_abbr(prog)
+    result = f"{branch} ({degree})" if degree else branch
+    if len(result) > 50:
+        result = result[:47] + "…"
+    return result
+
+
+def _short_program_name(prog: str) -> str:
+    """Abbreviated branch only, no degree suffix — used for compact chart labels."""
+    branch = _abbreviate_branch(prog)
+    if len(branch) > 28:
+        branch = branch[:25] + "…"
+    return branch
 
 
 def _short_institute_name(inst: str) -> str:
@@ -75,38 +382,10 @@ def _short_institute_name(inst: str) -> str:
     return inst
 
 
-def _short_program_name(prog: str) -> str:
-    prog = prog.strip()
-    replacements = [
-        (r"Computer Science and Engineering", "CSE"),
-        (r"Computer Science & Engineering", "CSE"),
-        (r"Computer Engineering", "CSE"),
-        (r"Information Technology", "IT"),
-        (r"Electronics and Communication Engineering", "ECE"),
-        (r"Electronics & Communication Engineering", "ECE"),
-        (r"Electrical Engineering", "EE"),
-        (r"Mechanical Engineering", "ME"),
-        (r"Civil Engineering", "CE"),
-        (r"Chemical Engineering", "CHE"),
-        (r"Aerospace Engineering", "AE"),
-        (r"Biotechnology", "BT"),
-        (r"Metallurgical Engineering", "Met. Engg."),
-        (r"Mathematics and Computing", "MnC"),
-        (r"Artificial Intelligence", "AI"),
-        (r"Data Science", "DS"),
-        (r"Electronics and Electrical Engineering", "EEE"),
-        (r"Electronics & Electrical Engineering", "EEE"),
-    ]
-    for pattern, replacement in replacements:
-        prog = re.sub(pattern, replacement, prog, flags=re.IGNORECASE)
-
-    prog = re.sub(r"\s*\(4 Years?, Bachelor of Technology\)", "", prog, flags=re.IGNORECASE)
-    prog = re.sub(r"\s*\(4 Years?, Bachelor of Engineering\)", "", prog, flags=re.IGNORECASE)
-    prog = re.sub(r"\s*\(5 Years?, Bachelor of Technology\)", "", prog, flags=re.IGNORECASE)
-
-    if len(prog) > 28:
-        prog = prog[:25] + "…"
-    return prog
+def _slot_label(row: pd.Series) -> str:
+    inst = _short_institute_name(row["Institute"])
+    prog = _display_program_name(row["Academic Program Name"])
+    return f"{inst} · {prog}"
 
 
 def _slot_legend_label(row: pd.Series) -> str:
@@ -390,6 +669,8 @@ if df is None or df.empty:
 round_cols = [c for c in df.columns if c.startswith("R") and c[1:].isdigit()]
 student_rank = st.session_state.get("last_rank", rank)
 
+df["Program"] = df["Academic Program Name"].apply(_display_program_name)
+
 # Summary metrics
 counts = df["Category"].value_counts()
 c1, c2, c3, c4 = st.columns(4)
@@ -460,8 +741,18 @@ with tab_table:
         prog_kw = st.text_input(
             "Filter by branch",
             key="filter_prog",
-            placeholder="e.g. CSE, Mechanical, Data Science, AI",
-            help="Matches any part of the program name. 'CSE' finds all CS variants at once.",
+            placeholder="e.g. CSE, EE, Dual, B.Arch, M.Sc",
+            help=(
+                "Searches abbreviated program names and raw names. "
+                "Common abbreviations: CSE, ECE, EE, ME, CE, ChE, IT, MnC, AE, BT, AI, DS, EEE, PIE. "
+                "Special codes: OE = Ocean Engg, NA = Naval Arch, NE / NUC = Nuclear, "
+                "BME = Biomedical, MECHAT = Mechatronics, PETRO = Petroleum, "
+                "ENV = Environmental, GEO = Geology/Geophysics, MFG = Manufacturing, "
+                "PHARMA = Pharmaceutical, BIO = all Bio-related, ML = Machine Learning, "
+                "IOT = Internet of Things, VLSI = VLSI. "
+                "Degree filters: DUAL = dual-degree, INT = integrated M.Tech/M.Sc, "
+                "BTECH, MTECH, BARCH."
+            ),
         )
 
     with f2:
@@ -474,8 +765,10 @@ with tab_table:
 
     table_df = df.copy()
     if prog_kw:
+        search_kw = _PROG_FILTER_ALIASES.get(prog_kw.strip().upper(), prog_kw)
         table_df = table_df[
-            table_df["Academic Program Name"].str.contains(prog_kw, case=False, na=False)
+            table_df["Program"].str.contains(search_kw, case=False, na=False)
+            | table_df["Academic Program Name"].str.contains(search_kw, case=False, na=False)
         ]
     if inst_kw:
         table_df = table_df[
@@ -488,7 +781,7 @@ with tab_table:
     has_seats     = "Seats" in df.columns and df["Seats"].notna().any()
     has_intervals = "Lower" in df.columns and "Upper" in df.columns
     display_cols = (
-        ["Institute", "Academic Program Name"]
+        ["Institute", "Program"]
         + round_cols
         + ["Final Pred"]
         + (["Lower", "Upper"] if has_intervals else [])
@@ -497,6 +790,11 @@ with tab_table:
     )
     cov_pct = 95
     col_cfg = {
+        "Program": st.column_config.TextColumn(
+            "Program",
+            help="Abbreviated branch name and degree type. "
+                 "e.g. 'CSE (4Y B.Tech)' = Computer Science & Engineering, 4-year B.Tech.",
+        ),
         "Final Pred": st.column_config.NumberColumn(
             "Final Pred",
             format="%d",
