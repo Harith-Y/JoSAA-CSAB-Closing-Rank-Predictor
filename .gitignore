@@ -1,6 +1,8 @@
 .vscode/
+.idea/
 __pycache__/
 
+data/
 
 *.aux
 *.log

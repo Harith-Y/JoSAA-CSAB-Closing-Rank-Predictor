@@ -267,14 +267,12 @@ with st.sidebar:
         else "Gender-Neutral"
     )
 
-    include_reach = st.checkbox("Include reach colleges", value=True)
-
     coverage = 0.95
 
     st.markdown("---")
     predict_btn = st.button("Predict", width="stretch", type="primary")
 
-    current_inputs = (source, exam_type, rank, quota, seat_type, gender, include_reach)
+    current_inputs = (source, exam_type, rank, quota, seat_type, gender)
     if st.session_state.get("last_inputs") != current_inputs:
         st.session_state.pop("results_df", None)
         st.session_state.pop("last_rank", None)
@@ -308,7 +306,7 @@ if predict_btn:
             gender          = gender,
             model           = model,
             rounds          = cfg["rounds"],
-            include_reach   = include_reach,
+            include_reach   = True,
             safe_threshold  = cfg["safe_threshold"],
             reach_threshold = cfg["reach_threshold"],
             coverage        = coverage,
