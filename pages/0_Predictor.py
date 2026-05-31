@@ -93,7 +93,6 @@ _BRANCH_ABBRS = [
     (r"Industrial Engineering", "IE"),
     (r"Engineering Design", "ED"),
     (r"Quality Engineering Design and Manufacturing", "QEDM"),
-    (r"\bD\s+and\s+M\b", "D&M"),
     # ── Civil / Architecture ───────────────────────────────────────────────────
     (r"Civil and Environmental Engineering", "CEE"),
     (r"Civil and Infrastructure Engineering", "CIE"),
@@ -217,6 +216,7 @@ _BRANCH_ABBRS = [
     (r"Micro\s+Electronics", "MicroE"),
     (r"Signal Processing\s*(?:and|&)\s*Communication", "SPC"),
     (r"Design and Manufacturing", "D&M"),
+    (r"\bD\s+and\s+M\b", "D&M"),
     (r"Advanced Manufacturing", "Adv.Mfg"),
     (r"Product Design", "ProdDesign"),
     (r"Power System", "PowerSys"),
@@ -1068,11 +1068,22 @@ with tab_table:
 
         with g_prog:
             st.caption("Short codes used in the **Program** column. Full names also work in the filter.")
+            def _pat_to_name(pat: str) -> str:
+                n = pat
+                for _seq in (r"\s+", r"\s*", r"\s?", r"\s"):
+                    n = n.replace(_seq, " ")     # \s sequences → space
+                n = n.replace(r"\b", "")         # word boundaries → nothing
+                n = re.sub(r"\(\?:([^)]*)\)",    # (?:A|B) → first alternative
+                           lambda m: m.group(1).split("|")[0], n)
+                n = re.sub(r"\[.+?\]", "", n)    # [...] character classes → nothing
+                n = n.replace(".*", " ")         # .* wildcard → space (keeps word separation)
+                for _ch in r"()?+*^${}|\\." :
+                    n = n.replace(_ch, "")       # remaining metacharacters
+                return re.sub(r"\s+", " ", n).strip()
             _seen_codes: dict[str, str] = {}
             for _pat, _code in _BRANCH_ABBRS:
                 if _code not in _seen_codes:
-                    _name = re.sub(r"\\.|\?|\.\*", "", _pat).strip()
-                    _seen_codes[_code] = _name
+                    _seen_codes[_code] = _pat_to_name(_pat)
             _guide_df = pd.DataFrame(
                 sorted(_seen_codes.items(), key=lambda x: x[0]),
                 columns=["Code", "Branch"],
@@ -1128,6 +1139,19 @@ with tab_table:
                 "| `VNIT Nagpur` | Visvesvaraya NIT Nagpur |\n"
                 "| `NIT Trichy` | NIT Tiruchirappalli |\n"
                 "| `NIT Surathkal` | NIT Karnataka, Surathkal |\n\n"
+                "**Other abbreviated institutes**\n\n"
+                "| Code | Institute |\n|---|---|\n"
+                "| `ABV-IIIT Gwalior` | Atal Bihari Vajpayee IIIT & Management Gwalior |\n"
+                "| `IIITDM Jabalpur` | Pt. Dwarka Prasad Mishra IIIT, Design & Manufacture Jabalpur |\n"
+                "| `ISM Dhanbad` | Indian School of Mines Dhanbad |\n"
+                "| `BIT Mesra, Ranchi` | Birla Institute of Technology, Mesra, Ranchi |\n"
+                "| `BIT Patna Off-Campus` | Birla Institute of Technology, Patna Off-Campus |\n"
+                "| `BIT Deoghar Off-Campus` | Birla Institute of Technology, Deoghar Off-Campus |\n"
+                "| `JNU Delhi` | Jawaharlal Nehru University, Delhi |\n"
+                "| `SGSITS Indore` | Shri G. S. Institute of Technology and Science Indore |\n"
+                "| `PEC Puducherry` | Pondicherry Engineering College, Puducherry |\n"
+                "| `NIELIT <City>` | National Institute of Electronics and Information Technology |\n"
+                "| `IIIT Senapati` | Indian Institute of Information Technology Senapati Manipur |\n\n"
                 "**Institute-type search shortcuts**\n\n"
                 "| Type | Finds |\n|---|---|\n"
                 "| `NIT` | All NITs |\n"
@@ -1138,7 +1162,9 @@ with tab_table:
                 "| `SPA` | School of Planning & Architecture |\n"
                 "| `PEC` | Punjab Engineering College |\n"
                 "| `SLIET` | Sant Longowal Inst. of Engg. |\n"
-                "| `NIFFT` | Natl. Inst. of Foundry & Forge Tech. |"
+                "| `NIFFT` | Natl. Inst. of Foundry & Forge Tech. |\n"
+                "| `ABV` | ABV-IIIT Gwalior |\n"
+                "| `NIELIT` | All NIELIT institutes |"
             )
 
     table_df = df.copy()
