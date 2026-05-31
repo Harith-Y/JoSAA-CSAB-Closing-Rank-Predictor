@@ -1150,7 +1150,7 @@ with tab_table:
                 "| `JNU Delhi` | Jawaharlal Nehru University, Delhi |\n"
                 "| `SGSITS Indore` | Shri G. S. Institute of Technology and Science Indore |\n"
                 "| `PEC Puducherry` | Pondicherry Engineering College, Puducherry |\n"
-                "| `NIELIT <City>` | National Institute of Electronics and Information Technology |\n"
+                "| `NIELIT` | National Institute of Electronics and Information Technology |\n"
                 "| `IIIT Senapati` | Indian Institute of Information Technology Senapati Manipur |\n\n"
                 "**Institute-type search shortcuts**\n\n"
                 "| Type | Finds |\n|---|---|\n"
