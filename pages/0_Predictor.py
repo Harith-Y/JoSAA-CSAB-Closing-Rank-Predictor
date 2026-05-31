@@ -73,7 +73,7 @@ _BRANCH_ABBRS = [
     (r"Electronics and VLSI Engineering", "EVLSIE"),
     (r"Electronics System Engineering", "ESE"),
     (r"Electronics Engineering", "ElecE"),
-    (r"Microelectronics.*VLSI", "MVLSI"),
+    (r"Microelectronics.*VLSI(?:\s+Systems?)?", "MVLSI"),
     (r"Integrated Circuit Design", "ICD"),
     # ── Electrical ─────────────────────────────────────────────────────────────
     (r"Electrical Engineering", "EE"),
@@ -93,6 +93,7 @@ _BRANCH_ABBRS = [
     (r"Industrial Engineering", "IE"),
     (r"Engineering Design", "ED"),
     (r"Quality Engineering Design and Manufacturing", "QEDM"),
+    (r"\bD\s+and\s+M\b", "D&M"),
     # ── Civil / Architecture ───────────────────────────────────────────────────
     (r"Civil and Environmental Engineering", "CEE"),
     (r"Civil and Infrastructure Engineering", "CIE"),
@@ -206,10 +207,11 @@ _BRANCH_ABBRS = [
     (r"Cyber Security", "CyberSec"),
     (r"Cyber Physical System", "CPS"),
     (r"Quantum Technologies?", "Quantum"),
+    (r"VLSI\s*(?:and|&)\s*Electronic\s+Systems?\s*Design", "VLSIElecSD"),
     (r"VLSI and Embedded Systems?", "VLSIEmbedded"),
     (r"VLSI Design", "VLSI"),
     (r"Microelectronics and VLSI", "MicroVLSI"),
-    (r"Signal Processing and Communication", "SPC"),
+    (r"Signal Processing\s*(?:and|&)\s*Communication", "SPC"),
     (r"Design and Manufacturing", "D&M"),
     (r"Advanced Manufacturing", "Adv.Mfg"),
     (r"Product Design", "ProdDesign"),
@@ -434,6 +436,36 @@ def _abbreviate_branch(prog: str) -> str:
 
     for pattern, replacement in _BRANCH_ABBRS:
         branch = re.sub(pattern, replacement, branch, flags=re.IGNORECASE)
+
+    # Strip residual "B. Tech." / "B.Tech." prefix from dual degree program names
+    # (e.g. "B. Tech. CSE and M. Tech. CSE (SD)" → "CSE and M. Tech. CSE (SD)")
+    branch = re.sub(r"^B\.?\s*Tech\.?\s+", "", branch, flags=re.IGNORECASE)
+
+    # Compress "X and M.Tech. [in] Y" dual degree notation → "X+M.Tech (Y)"
+    m_dual = re.match(
+        r"^(.+?)\s+and\s+M\.?\s*Tech\.?\s+(?:in\s+)?(.+)$",
+        branch,
+        re.IGNORECASE,
+    )
+    if m_dual:
+        btpart = m_dual.group(1).strip()
+        mtpart = m_dual.group(2).strip()
+        if mtpart.startswith(btpart):
+            mtpart = mtpart[len(btpart):].strip()
+            branch = (f"{btpart}+M.Tech {mtpart}".strip() if mtpart else f"{btpart}+M.Tech")
+        elif mtpart.startswith("(") and mtpart.endswith(")"):
+            branch = f"{btpart}+M.Tech {mtpart}"
+        else:
+            branch = f"{btpart}+M.Tech ({mtpart})"
+    else:
+        # Normalize "... + M. Tech [-] Y" (using "+") → "...+M.Tech (Y)"
+        branch = re.sub(
+            r"\s*\+\s*M\.?\s*Tech\.?(?:\s*[-–]\s*|\s+)(.+)$",
+            lambda m: f"+M.Tech ({m.group(1).strip()})",
+            branch,
+            flags=re.IGNORECASE,
+        )
+
     return branch
 
 
