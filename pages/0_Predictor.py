@@ -152,11 +152,13 @@ _BRANCH_ABBRS = [
     (r"Biological Sciences? and Bioengineering", "BSBE"),
     (r"Biosciences? and Bioengineering", "BBE"),
     (r"Biological Sciences?", "BioSci"),
+    (r"Bio-Medical Engineering", "BME"),
     (r"Biomedical Engineering", "BME"),
     (r"Bio Medical Engineering", "BME"),
     (r"Bio Engineering", "BioE"),
     (r"Biotechnology and Biochemical Engineering", "BT+BioChmE"),
     (r"Biotechnology and Bioinformatics", "BT+BioInf"),
+    (r"Bio-?Informatics", "BioInf"),
     (r"Biotechnology", "BT"),
     (r"Bio Technology", "BT"),
     (r"Agricultural and Food Engineering", "AgriFood E"),
@@ -204,13 +206,15 @@ _BRANCH_ABBRS = [
     (r"Industrial Internet of Things", "IIoT"),
     (r"Robotics and AI", "RAI"),
     # ── Specialisation terms (appear after "with specialisation in" stripping) ──
-    (r"Cyber Security", "CyberSec"),
+    (r"Cyber Security\s*(?:including\s+Block\s*Chain\s*Technology)?", "CyberSec"),
+    (r"Block\s*Chain\s*Technology", "BlockChain"),
     (r"Cyber Physical System", "CPS"),
     (r"Quantum Technologies?", "Quantum"),
     (r"VLSI\s*(?:and|&)\s*Electronic\s+Systems?\s*Design", "VLSIElecSD"),
     (r"VLSI and Embedded Systems?", "VLSIEmbedded"),
     (r"VLSI Design", "VLSI"),
     (r"Microelectronics and VLSI", "MicroVLSI"),
+    (r"Micro\s+Electronics", "MicroE"),
     (r"Signal Processing\s*(?:and|&)\s*Communication", "SPC"),
     (r"Design and Manufacturing", "D&M"),
     (r"Advanced Manufacturing", "Adv.Mfg"),
@@ -225,6 +229,12 @@ _BRANCH_ABBRS = [
     (r"AI and ML", "AI+ML"),
     (r"AI and Robotics", "AIR"),
     (r"Communication Systems?", "CommSys"),
+    (r"Wireless Communication Engineering", "WCE"),
+    (r"Human Computer\s+Interaction\s+and\s+Gaming\s+Technology", "HCI"),
+    (r"Human Computer\s+Interaction\b", "HCI"),
+    (r"Cyber Law\s*(?:and|&)\s*Information Security", "CLIS"),
+    (r"Intelligent System", "IntelSys"),
+    (r"Software Engineering", "SoftE"),
     (r"Systems? Design", "SD"),
     (r"Construction Technology and Management", "CTM"),
     (r"Machine Learning", "ML"),
@@ -405,6 +415,37 @@ def _abbreviate_branch(prog: str) -> str:
     # Fix known typos in source data
     branch = re.sub(r"\blntelligence\b", "Intelligence", branch)
     branch = re.sub(r"\bIntelligenece\b", "Intelligence", branch, flags=re.IGNORECASE)
+    branch = re.sub(r"\bIntellegent\b", "Intelligent", branch, flags=re.IGNORECASE)
+    branch = re.sub(r"\blnteraction\b", "Interaction", branch)  # l vs I typo
+
+    # Strip "Integrated B. Tech. - M. Tech in X" → X  (integrated dual degree prefix)
+    branch = re.sub(
+        r"^Integrated\s+B\.?\s*Tech\.?\s*[-–]\s*M\.?\s*Tech\.?\s+in\s+",
+        "",
+        branch,
+        flags=re.IGNORECASE,
+    )
+    # "Integrated B. Tech.(X) and M. Tech (Y)" → "X+M.Tech"
+    branch = re.sub(
+        r"^Integrated\s+B\.?\s*Tech\.?\s*\(([^)]+)\)\s+and\s+M\.?\s*Tech\b.*$",
+        r"\1+M.Tech",
+        branch,
+        flags=re.IGNORECASE,
+    )
+    # "Integrated B. Tech.(X) and MBA" → "X+MBA"
+    branch = re.sub(
+        r"^Integrated\s+B\.?\s*Tech\.?\s*\(([^)]+)\)\s+and\s+MBA\b.*$",
+        r"\1+MBA",
+        branch,
+        flags=re.IGNORECASE,
+    )
+    # "B.Tech (X) - MBA ..." → "X+MBA"  (e.g. IIM dual degree programmes)
+    branch = re.sub(
+        r"^B\.?\s*Tech\.?\s*\(([^)]+)\)\s*[-–]\s*MBA\b.*$",
+        r"\1+MBA",
+        branch,
+        flags=re.IGNORECASE,
+    )
 
     # Strip "B.Tech in / B. Tech. in" prefixes (Rail / Gati Shakti programmes)
     branch = re.sub(r"^B\.?\s*Tech\.?\s+in\s+", "", branch, flags=re.IGNORECASE)
@@ -425,9 +466,12 @@ def _abbreviate_branch(prog: str) -> str:
     )
 
     # "X and M.Tech (X) Spl. Y" → "X+M.Tech (Y)"  (IIIT Allahabad integrated programs)
+    # Strip outer parens from spec if it already has them to avoid double-bracketing
     branch = re.sub(
         r"\s+and\s+M\.Tech\.?\s*\([^)]+\)\s*Spl\.?\s*(.+)?$",
-        lambda m: f"+M.Tech ({m.group(1).strip()})" if m.group(1) else "+M.Tech",
+        lambda m: (
+            f"+M.Tech ({m.group(1).strip().strip('()')})" if m.group(1) else "+M.Tech"
+        ),
         branch,
         flags=re.IGNORECASE,
     )
@@ -436,6 +480,7 @@ def _abbreviate_branch(prog: str) -> str:
 
     for pattern, replacement in _BRANCH_ABBRS:
         branch = re.sub(pattern, replacement, branch, flags=re.IGNORECASE)
+    branch = re.sub(r"\s+\)", ")", branch).strip()  # clean trailing spaces inside parens
 
     # Strip residual "B. Tech." / "B.Tech." prefix from dual degree program names
     # (e.g. "B. Tech. CSE and M. Tech. CSE (SD)" → "CSE and M. Tech. CSE (SD)")
@@ -459,9 +504,14 @@ def _abbreviate_branch(prog: str) -> str:
             branch = f"{btpart}+M.Tech ({mtpart})"
     else:
         # Normalize "... + M. Tech [-] Y" (using "+") → "...+M.Tech (Y)"
+        # Don't double-wrap if captured group is already parenthesised
         branch = re.sub(
             r"\s*\+\s*M\.?\s*Tech\.?(?:\s*[-–]\s*|\s+)(.+)$",
-            lambda m: f"+M.Tech ({m.group(1).strip()})",
+            lambda m: (
+                f"+M.Tech {m.group(1).strip()}"
+                if m.group(1).strip().startswith("(")
+                else f"+M.Tech ({m.group(1).strip()})"
+            ),
             branch,
             flags=re.IGNORECASE,
         )
@@ -513,6 +563,20 @@ def _short_institute_name(inst: str) -> str:
     # e.g. "IIT (BHU) Varanasi" → "IIT Varanasi", "IIIT (IIIT) Nagpur" → "IIIT Nagpur"
     inst = re.sub(r"\s*\([^)]*\)", "", inst).strip()
     replacements = [
+        # ── Specific named institutions (must come before all generic patterns) ─
+        (r"^Atal Bihari Vajpayee\b.*", "ABV-IIIT Gwalior"),
+        (r"^Pt\.?\s+Dwarka Prasad Mishra\b.*", "IIITDM Jabalpur"),
+        (r"^Birla Institute of Technology[,\s]+Mesra\b.*", "BIT Mesra, Ranchi"),
+        (r"^Birla Institute of Technology[,\s]+Patna\b.*", "BIT Patna Off-Campus"),
+        (r"^Birla Institute of Technology[,\s]+Deoghar\b.*", "BIT Deoghar Off-Campus"),
+        (r"^Birla Institute of Technology\b.*", "BIT Mesra"),
+        (r"^Indian School of Mines\b.*", "ISM Dhanbad"),
+        (r"^Jawaharlal Nehru University\b.*", "JNU Delhi"),
+        (r"^Shri G\.?\s*S\.?\s*Institute of Technology\b.*", "SGSITS Indore"),
+        (r"^Pondicherry Engineering College\b.*", "PEC Puducherry"),
+        (r"^National Institute of Electronics and Information Technology[,\s]+", "NIELIT "),
+        # IIIT Senapati must precede the generic all-caps IIIT pattern
+        (r"^INDIAN INSTITUTE OF INFORMATION TECHNOLOGY SENAPATI\b.*", "IIIT Senapati"),
         # ── Named NITs (must come before generic NIT pattern) ─────────────────
         (r"^Dr\.?\s*B\.?\s*R\.?\s*Ambedkar National Institute of Technology[,\s]+", "NIT "),
         (r"^Malaviya National Institute of Technology[,\s]+", "MNIT "),
@@ -555,6 +619,7 @@ _WELL_KNOWN_INST_RE = re.compile(
     r"Indian Institute of Information Technology|"
     r"International Institute of Information Technology|"
     r"National Institute of Technology|"
+    r"National Institute of Electronics and Information Technology|"
     r"Dr\.?\s*B\.?\s*R\.?\s*Ambedkar National Institute of Technology|"
     r"Malaviya National Institute of Technology|"
     r"Maulana Azad National Institute of Technology|"
@@ -563,7 +628,15 @@ _WELL_KNOWN_INST_RE = re.compile(
     r"Visvesvaraya National Institute of Technology|"
     r"Indian Institute of Engineering Science and Technology|"
     r"Indian Institute of Science Education and Research|"
-    r"Indian Institute of Science\b"
+    r"Indian Institute of Science\b|"
+    r"Atal Bihari Vajpayee Indian Institute of Information Technology|"
+    r"Pt\.?\s*Dwarka Prasad Mishra Indian Institute of Information Technology|"
+    r"Birla Institute of Technology|"
+    r"Indian School of Mines|"
+    r"Jawaharlal Nehru University|"
+    r"Shri G\.?\s*S\.?\s*Institute of Technology|"
+    r"Pondicherry Engineering College|"
+    r"INDIAN INSTITUTE OF INFORMATION TECHNOLOGY SENAPATI"
     r")",
     re.IGNORECASE,
 )
