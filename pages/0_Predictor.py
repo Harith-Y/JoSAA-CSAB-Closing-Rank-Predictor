@@ -464,6 +464,18 @@ def _short_program_name(prog: str) -> str:
     return branch
 
 
+_TRAILING_STATE_RE = re.compile(
+    r",\s*(?:Andhra Pradesh|Andra Pradesh|Arunachal Pradesh|Assam|Bihar|"
+    r"Chandigarh|Chhattisgarh|Goa|Gujarat|Gujrat|Haryana|Himachal Pradesh|"
+    r"Jammu\s*(?:&|and)\s*Kashmir|Jharkhand|Karnataka|Kerala|Madhya Pradesh|"
+    r"Maharashtra|Manipur|Meghalaya|Mizoram|Nagaland|Odisha|Orissa|Punjab|"
+    r"Rajasthan|Sikkim|Tamil\s*Nadu|Tamil\s*Naidu|Tamilnadu|Telangana|Tripura|"
+    r"Uttar Pradesh|Uttarakhand|West Bengal|Delhi|Puducherry|Pondicherry|Ladakh)"
+    r"\s*$",
+    re.IGNORECASE,
+)
+
+
 def _short_institute_name(inst: str) -> str:
     # Remove parenthetical clarifications but keep text that follows them
     # e.g. "IIT (BHU) Varanasi" → "IIT Varanasi", "IIIT (IIIT) Nagpur" → "IIIT Nagpur"
@@ -477,9 +489,12 @@ def _short_institute_name(inst: str) -> str:
         (r"^Sardar Vallabhbhai National Institute of Technology[,\s]+", "SVNIT "),
         (r"^Visvesvaraya National Institute of Technology[,\s]+", "VNIT "),
         # ── Standard patterns ─────────────────────────────────────────────────
-        (r"^Indian Institute of Technology, Design & Manufacturing\b", "IIITDM"),
-        (r"^Indian Institute of Information Technology, Design & Manufacturing\b", "IIITDM"),
+        # ,?\s* handles both "Technology, Design" and "Technology Design" variants
+        (r"^Indian Institute of Technology,?\s*Design & Manufacturing\b", "IIITDM"),
+        (r"^Indian Institute of Information Technology,?\s*Design & Manufacturing\b", "IIITDM"),
         (r"^Indian Institute of Information Technology[,\s]+", "IIIT "),
+        # no separator between "Technology" and city (e.g. "Technology(IIIT)Kota" after paren removal)
+        (r"^Indian Institute of Information Technology(?=[A-Z])", "IIIT "),
         (r"^Indian institute of information technology[,\s]+", "IIIT "),
         (r"^INDIAN INSTITUTE OF INFORMATION TECHNOLOGY[,\s]+", "IIIT "),
         (r"^International Institute of Information Technology[,\s]+", "IIIT "),
@@ -494,6 +509,9 @@ def _short_institute_name(inst: str) -> str:
     inst = re.sub(r"\bUniversity\b", "Univ.", inst)
     inst = re.sub(r"\bInstitute\b", "Inst.", inst)
     inst = re.sub(r"\s+,\s+|\s{2,}", " ", inst).strip()
+    # Strip trailing Indian state names and "District" (redundant location info in JOSAA data)
+    inst = _TRAILING_STATE_RE.sub("", inst).strip()
+    inst = re.sub(r",?\s+District\s*$", "", inst, flags=re.IGNORECASE).strip()
     if len(inst) > 32:
         inst = inst[:29] + "…"
     return inst
