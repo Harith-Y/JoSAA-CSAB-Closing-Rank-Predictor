@@ -103,6 +103,8 @@ streamlit run app.py
 
 Opens in the browser. Select source, exam type, rank, quota, seat type, and gender in the sidebar, then click **Predict**. Switch to the **Trajectory Plot** tab to compare predicted R1–R_max closing-rank trajectories for selected colleges.
 
+Deployed Link : [Link](https://josaa-csab-closing-rank-predictor.streamlit.app)
+
 ## Prediction Categories
 
 | Category | Condition |
@@ -153,3 +155,5 @@ CSAB overall MAE (2025, 4 training years): **42,318** (GP-MLP ensemble) vs 49,86
 ## Paper
 
 A research write-up covering the methodology, model comparisons, and evaluation results is in [`paper.pdf`](paper.pdf). The paper focuses on the statistical findings and system design; this README is the reference for installation, usage, and code structure.
+
+ResearchGate Link : [Link](https://www.researchgate.net/publication/405481388_Predicting_JOSAA_College_Admissions_Using_an_Ensemble_of_Year-Trend_and_Round-Progression_Models_From_Automated_Data_Collection_to_Multi-Round_Forecasting)
