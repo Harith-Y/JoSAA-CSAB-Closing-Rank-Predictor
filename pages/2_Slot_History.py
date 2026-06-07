@@ -38,24 +38,19 @@ def _fetch_supabase(
     if isinstance(client, str):
         return pd.DataFrame(), client   # propagate error message
     try:
-        rows: list[dict] = []
-        page = 0
-        while True:
-            resp = (
-                client.table(table)
-                .select('"Year","Round","Opening Rank","Closing Rank"')
-                .eq("Institute", inst)
-                .eq("Academic Program Name", prog)
-                .eq("Quota", quota)
-                .eq("Seat Type", seat_type)
-                .eq("Gender", gender)
-                .range(page * 1000, page * 1000 + 999)
-                .execute()
-            )
-            rows.extend(resp.data)
-            if len(resp.data) < 1000:
-                break
-            page += 1
+        # A single slot has at most ~60 rows (10 yrs × 6 rounds); no pagination needed.
+        resp = (
+            client.table(table)
+            .select('"Year","Round","Opening Rank","Closing Rank"')
+            .eq("Institute", inst)
+            .eq("Academic Program Name", prog)
+            .eq("Quota", quota)
+            .eq("Seat Type", seat_type)
+            .eq("Gender", gender)
+            .limit(200)
+            .execute()
+        )
+        rows = resp.data
         if not rows:
             return pd.DataFrame(), None
         df = pd.DataFrame(rows)
