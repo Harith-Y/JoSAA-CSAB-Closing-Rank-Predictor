@@ -5,6 +5,7 @@ import re
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 from pipeline.config import PREDICT_YEAR, SOURCES, MODEL_DIR
 from pipeline.predict import predict
@@ -745,6 +746,25 @@ def _build_trajectory_fig(
     return fig
 
 
+# ── History-link builder ─────────────────────────────────────────────────────
+
+def _hist_url(row, source: str, student_rank: int) -> str:
+    import urllib.parse
+    return "/Slot_History?" + urllib.parse.urlencode({
+        "source":    source,
+        "inst":      row["Institute"],
+        "prog":      row["Academic Program Name"],
+        "quota":     row["Quota"],
+        "seat_type": row["Seat Type"],
+        "gender":    row["Gender"],
+        "pred":      int(row["Final Pred"]),
+        "lower":     int(row.get("Lower", row["Final Pred"])),
+        "upper":     int(row.get("Upper", row["Final Pred"])),
+        "cat":       row["Category"],
+        "rank":      student_rank,
+    })
+
+
 # ── URL query-param helpers ──────────────────────────────────────────────────
 # Snapshot BEFORE the sidebar writes defaults. True only when the user
 # navigated here with a previously-saved URL (refresh / shared link).
@@ -913,6 +933,9 @@ _auto_predict = _HAD_URL_STATE and "results_df" not in st.session_state
 # Main area
 st.title("JoSAA / CSAB Closing Rank Predictor")
 
+# Sidebar defaults to expanded here (set natively via initial_sidebar_state in
+# app.py), so it re-opens whenever the user lands on / returns to this page.
+
 if cfg.get("disclaimer"):
     st.warning(cfg["disclaimer"])
 
@@ -948,6 +971,29 @@ if predict_btn or _auto_predict:
     st.session_state["last_rank"]   = rank
     st.session_state["last_inputs"] = current_inputs
 
+# Collapse the sidebar whenever the user presses Predict (same-session rerun,
+# so initial_sidebar_state can't help, toggle the native collapse button).
+if predict_btn:
+    components.html("""<script>
+    (function() {
+        var doc = window.parent.document, n = 0;
+        function go() {
+            n++;
+            var sb = doc.querySelector('[data-testid="stSidebar"]');
+            if (sb) {
+                if (sb.getBoundingClientRect().right > 100) {   // currently open
+                    var btn = doc.querySelector('[data-testid="stSidebarCollapseButton"] button')
+                           || doc.querySelector('[data-testid="stSidebarCollapseButton"]');
+                    if (btn) btn.click();
+                }
+                return;   // found sidebar: decided once, stop (no re-toggling)
+            }
+            if (n < 12) setTimeout(go, 150);
+        }
+        setTimeout(go, 100);
+    })();
+    </script>""", height=0)
+
 # Display results
 df = st.session_state.get("results_df")
 
@@ -974,9 +1020,10 @@ if df is None or df.empty:
 round_cols = [c for c in df.columns if c.startswith("R") and c[1:].isdigit()]
 student_rank = st.session_state.get("last_rank", rank)
 
-df["Program"]   = df["Academic Program Name"].apply(_display_program_name)
-df["InstAbbr"]  = df["Institute"].apply(_short_institute_name)
+df["Program"]    = df["Academic Program Name"].apply(_display_program_name)
+df["InstAbbr"]   = df["Institute"].apply(_short_institute_name)
 df["InstDisplay"] = df.apply(lambda r: _display_institute_name(r["Institute"], r["InstAbbr"]), axis=1)
+df["_hist_url"]  = df.apply(lambda r: _hist_url(r, source.lower(), student_rank), axis=1)
 
 # Summary metrics
 counts = df["Category"].value_counts()
@@ -1088,7 +1135,7 @@ with tab_table:
                 sorted(_seen_codes.items(), key=lambda x: x[0]),
                 columns=["Code", "Branch"],
             )
-            st.dataframe(_guide_df, hide_index=True, use_container_width=True, height=300)
+            st.dataframe(_guide_df, hide_index=True, width="stretch", height=300)
 
             st.caption("**Degree types** in the Program column:")
             st.markdown(
@@ -1259,10 +1306,17 @@ with tab_table:
             unsafe_allow_html=True,
         )
         st.dataframe(
-            subset[display_cols].reset_index(drop=True),
+            subset[display_cols + ["_hist_url"]].reset_index(drop=True),
             width="stretch",
             hide_index=True,
-            column_config=col_cfg,
+            column_config={
+                **col_cfg,
+                "_hist_url": st.column_config.LinkColumn(
+                    "History",
+                    display_text="📊 View",
+                    help="Opens a dedicated page with year-by-year historical closing ranks for this slot.",
+                ),
+            },
         )
         st.markdown("")
 
