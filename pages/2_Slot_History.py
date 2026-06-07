@@ -24,17 +24,19 @@ def _supabase_client():
     try:
         from supabase import create_client
         return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-    except Exception:
-        return None
+    except KeyError as e:
+        return f"missing_secret:{e}"
+    except Exception as e:
+        return f"error:{e}"
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def _fetch_supabase(
     table: str, inst: str, prog: str, quota: str, seat_type: str, gender: str,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, str | None]:
     client = _supabase_client()
-    if client is None:
-        return pd.DataFrame()
+    if isinstance(client, str):
+        return pd.DataFrame(), client   # propagate error message
     try:
         rows: list[dict] = []
         page = 0
@@ -55,7 +57,7 @@ def _fetch_supabase(
                 break
             page += 1
         if not rows:
-            return pd.DataFrame()
+            return pd.DataFrame(), None
         df = pd.DataFrame(rows)
         for col in ["Year", "Round", "Opening Rank", "Closing Rank"]:
             if col in df.columns:
@@ -63,10 +65,11 @@ def _fetch_supabase(
         return (
             df.dropna(subset=["Year", "Round", "Closing Rank"])
             .sort_values(["Year", "Round"])
-            .reset_index(drop=True)
+            .reset_index(drop=True),
+            None,
         )
-    except Exception:
-        return pd.DataFrame()
+    except Exception as e:
+        return pd.DataFrame(), str(e)
 
 
 @st.cache_data(show_spinner=False)
@@ -82,7 +85,7 @@ def _fetch_csv(source: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def _fetch(source, inst, prog, quota, seat_type, gender) -> pd.DataFrame:
+def _fetch(source, inst, prog, quota, seat_type, gender) -> tuple[pd.DataFrame, str | None]:
     full = _fetch_csv(source)
     if not full.empty:
         mask = (
@@ -94,7 +97,7 @@ def _fetch(source, inst, prog, quota, seat_type, gender) -> pd.DataFrame:
         )
         sub = full[mask][["Year", "Round", "Opening Rank", "Closing Rank"]].copy()
         if not sub.empty:
-            return sub.sort_values(["Year", "Round"]).reset_index(drop=True)
+            return sub.sort_values(["Year", "Round"]).reset_index(drop=True), None
     return _fetch_supabase(source, inst, prog, quota, seat_type, gender)
 
 
@@ -234,7 +237,15 @@ st.caption(f"Quota: {quota} · Seat Type: {seat_type} · Gender: {gender} · Sou
 st.markdown("---")
 
 with st.spinner("Fetching historical data…"):
-    hist = _fetch(source, inst, prog, quota, seat_type, gender)
+    hist, _fetch_err = _fetch(source, inst, prog, quota, seat_type, gender)
+
+if _fetch_err:
+    st.error(
+        f"Could not connect to the database: `{_fetch_err}`\n\n"
+        "If you are the app owner, make sure **SUPABASE_URL** and **SUPABASE_KEY** "
+        "are set in the Streamlit Cloud app secrets."
+    )
+    st.stop()
 
 if hist.empty:
     st.info(
