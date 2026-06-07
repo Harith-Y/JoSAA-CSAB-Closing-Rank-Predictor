@@ -43,7 +43,7 @@ def _fetch_supabase(
         while True:
             resp = (
                 client.table(table)
-                .select("Year,Round,Opening Rank,Closing Rank")
+                .select('"Year","Round","Opening Rank","Closing Rank"')
                 .eq("Institute", inst)
                 .eq("Academic Program Name", prog)
                 .eq("Quota", quota)
