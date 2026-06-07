@@ -1,5 +1,5 @@
 """
-JoSAA Seat Matrix Scraper (current year: 2025)
+JoSAA Seat Matrix Scraper
 Saves to seat_matrix.csv with columns:
     Year, Institute, Program, Quota, Seat Type, Gender, Seats
 
@@ -14,9 +14,10 @@ Seat-type column order in the table (indices 4..13 on row A, 1..10 on row C):
     OPEN | OPEN-PwD | GEN-EWS | GEN-EWS-PwD | SC | SC-PwD | ST | ST-PwD | OBC-NCL | OBC-NCL-PwD
 
 Usage:
-    python scripts/scrape_seat_matrix.py
+    python scripts/scrape_seat_matrix.py [--year YYYY]
 """
 
+import argparse
 import csv
 import os
 import time
@@ -24,8 +25,7 @@ import time
 from playwright.sync_api import sync_playwright
 
 URL        = "https://josaa.admissions.nic.in/applicant/seatmatrix/seatmatrixinfo.aspx"
-OUTPUT     = "seat_matrix.csv"
-YEAR       = 2025
+OUTPUT     = "data/seat_matrix.csv"
 SUBMIT_BTN = "#ctl00_ContentPlaceHolder1_btnSubmit"
 TABLE_ID   = "#GridView1"
 
@@ -66,7 +66,7 @@ def norm_quota(raw: str) -> str:
     return raw.strip()
 
 
-def parse_table(page) -> list[dict]:
+def parse_table(page, year: int) -> list[dict]:
     table = page.query_selector(TABLE_ID)
     if table is None:
         print("[warn] GridView1 not found")
@@ -98,7 +98,7 @@ def parse_table(page) -> list[dict]:
                 val = _parse_int(raw)
                 if val is not None:
                     rows_out.append({
-                        "Year": YEAR, "Institute": current_inst,
+                        "Year": year, "Institute": current_inst,
                         "Program": current_prog, "Quota": current_quota,
                         "Seat Type": st_name, "Gender": gender, "Seats": val,
                     })
@@ -111,7 +111,7 @@ def parse_table(page) -> list[dict]:
                 val = _parse_int(raw)
                 if val is not None:
                     rows_out.append({
-                        "Year": YEAR, "Institute": current_inst,
+                        "Year": year, "Institute": current_inst,
                         "Program": current_prog, "Quota": current_quota,
                         "Seat Type": st_name, "Gender": gender, "Seats": val,
                     })
@@ -130,12 +130,12 @@ def _parse_int(raw: str) -> int | None:
         return None
 
 
-def scrape():
+def scrape(year: int):
     if os.path.exists(OUTPUT):
         import pandas as pd
         existing = pd.read_csv(OUTPUT)
-        if "Year" in existing.columns and YEAR in existing["Year"].values:
-            print(f"Year {YEAR} already in {OUTPUT}, skipping.")
+        if "Year" in existing.columns and year in existing["Year"].values:
+            print(f"Year {year} already in {OUTPUT}, skipping.")
             return
 
     with sync_playwright() as pw:
@@ -150,7 +150,7 @@ def scrape():
         time.sleep(1)
 
         print("Parsing seat matrix…")
-        rows = parse_table(page)
+        rows = parse_table(page, year)
         browser.close()
 
     if not rows:
@@ -168,4 +168,7 @@ def scrape():
 
 
 if __name__ == "__main__":
-    scrape()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--year", type=int, default=2026)
+    args = parser.parse_args()
+    scrape(args.year)
