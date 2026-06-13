@@ -937,18 +937,12 @@ with st.sidebar:
         "gender":    "FO" if gender_raw == "Female-only" else "GN",
     })
 
-    # Model Evaluation link (josaa only, shown once model pkl is on disk)
+    # Actuals notice (josaa only, shown when round data is available)
     if source == "josaa":
         _all_actuals_sb = load_all_actuals_cached()
-        _model_pkl = os.path.join(MODEL_DIR, SOURCES[source]["model"])
-        if _all_actuals_sb and os.path.exists(_model_pkl):
-            st.markdown("---")
+        if _all_actuals_sb:
             _rounds_label = " + ".join(f"R{r}" for r in sorted(_all_actuals_sb))
-            st.page_link(
-                "pages/3_Model_Evaluation.py",
-                label=f"📊 {_rounds_label} 2026 Model Evaluation",
-                use_container_width=True,
-            )
+            st.caption(f"📌 {_rounds_label} 2026 actuals loaded - predictions anchored.")
 
 # Auto-predict on fresh load when URL already has saved inputs
 _auto_predict = _HAD_URL_STATE and "results_df" not in st.session_state
