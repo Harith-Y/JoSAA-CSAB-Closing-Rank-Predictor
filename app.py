@@ -18,8 +18,9 @@ st.set_page_config(
 )
 
 pg = st.navigation([
-    st.Page("pages/0_Predictor.py",       title="Predictor",      icon="🎓"),
-    st.Page("pages/1_Historical_Data.py", title="Historical Data", icon="📊"),
-    st.Page("pages/2_Slot_History.py",    title="Slot History",    icon="📈"),
+    st.Page("pages/0_Predictor.py",        title="Predictor",        icon="🎓"),
+    st.Page("pages/1_Historical_Data.py",  title="Historical Data",   icon="📊"),
+    st.Page("pages/2_Slot_History.py",     title="Slot History",      icon="📈"),
+    st.Page("pages/3_Model_Evaluation.py", title="Model Evaluation",  icon="📉"),
 ])
 pg.run()

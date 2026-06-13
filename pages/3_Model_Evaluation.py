@@ -7,9 +7,6 @@ import streamlit as st
 from pipeline.config import PREDICT_YEAR, SOURCES, MODEL_DIR, CURRENT_ROUND_DATA
 from pipeline.predict import load_all_actuals, evaluate_round
 
-st.set_page_config(page_title="Model Evaluation", layout="wide")
-
-
 @st.cache_resource(show_spinner="Loading model…")
 def _load_model():
     cfg  = SOURCES["josaa"]
