@@ -52,8 +52,13 @@ def load_model_cached(source: str):
         return pickle.load(f), path
 
 
-# Helpers
-_BRANCH_ABBRS = [
+from pipeline.display import (
+    _BRANCH_ABBRS, _PROG_FILTER_ALIASES, _INST_FILTER_ALIASES,
+    _display_program_name, _short_program_name, _short_institute_name,
+    _display_institute_name, abbr_guide_df,
+)
+
+_DEGREE_PATTERNS = [
     # ── Computer / IT ──────────────────────────────────────────────────────────
     (r"Computer Science and Engineering", "CSE"),
     (r"Computer Science & Engineering", "CSE"),
@@ -1150,27 +1155,7 @@ with tab_table:
 
         with g_prog:
             st.caption("Short codes used in the **Program** column. Full names also work in the filter.")
-            def _pat_to_name(pat: str) -> str:
-                n = pat
-                for _seq in (r"\s+", r"\s*", r"\s?", r"\s"):
-                    n = n.replace(_seq, " ")     # \s sequences → space
-                n = n.replace(r"\b", "")         # word boundaries → nothing
-                n = re.sub(r"\(\?:([^)]*)\)",    # (?:A|B) → first alternative
-                           lambda m: m.group(1).split("|")[0], n)
-                n = re.sub(r"\[.+?\]", "", n)    # [...] character classes → nothing
-                n = n.replace(".*", " ")         # .* wildcard → space (keeps word separation)
-                for _ch in r"()?+*^${}|\\." :
-                    n = n.replace(_ch, "")       # remaining metacharacters
-                return re.sub(r"\s+", " ", n).strip()
-            _seen_codes: dict[str, str] = {}
-            for _pat, _code in _BRANCH_ABBRS:
-                if _code not in _seen_codes:
-                    _seen_codes[_code] = _pat_to_name(_pat)
-            _guide_df = pd.DataFrame(
-                sorted(_seen_codes.items(), key=lambda x: x[0]),
-                columns=["Code", "Branch"],
-            )
-            st.dataframe(_guide_df, hide_index=True, width="stretch", height=300)
+            st.dataframe(abbr_guide_df(), hide_index=True, width="stretch", height=300)
 
             st.caption("**Degree types** in the Program column:")
             st.markdown(
