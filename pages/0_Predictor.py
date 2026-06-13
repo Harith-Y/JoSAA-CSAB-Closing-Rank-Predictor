@@ -33,6 +33,11 @@ def load_all_actuals_cached() -> dict[int, dict]:
     return load_all_actuals(CURRENT_ROUND_DATA)
 
 
+@st.cache_data(show_spinner=False)
+def evaluate_round_cached(_model, actuals: dict, round_num: int, year: int) -> "pd.DataFrame":
+    return evaluate_round(_model, actuals, round_num, year)
+
+
 # Model cache
 @st.cache_resource(show_spinner="Loading model…")
 def load_model_cached(source: str):
@@ -941,28 +946,28 @@ with st.sidebar:
             if _model_sb is not None:
                 st.markdown("---")
                 for _rn, _r_actuals in sorted(_all_actuals_sb.items()):
-                    st.markdown(f"**📊 R{_rn} 2026 - Model Evaluation**")
-                    _eval_df = evaluate_round(_model_sb, _r_actuals, _rn, year=PREDICT_YEAR)
-                    if _eval_df.empty:
-                        st.caption("No matched slots.")
-                        continue
-                    st.metric("MAE", f"{int(_eval_df['Abs_Error'].mean()):,}")
-                    st.metric("Median AE", f"{int(_eval_df['Abs_Error'].median()):,}")
-                    st.caption("% of slots within error threshold:")
-                    for _thresh, _label in [(500, "±500"), (1000, "±1,000"),
-                                            (2000, "±2,000"), (5000, "±5,000")]:
-                        _frac = (_eval_df["Abs_Error"] <= _thresh).mean()
-                        st.markdown(f"<small>{_label}: **{_frac*100:.1f}%**</small>",
-                                    unsafe_allow_html=True)
-                        st.progress(_frac)
-                    with st.expander(f"Worst-predicted R{_rn} slots"):
-                        _pred_col = f"Predicted_R{_rn}"
-                        _act_col  = f"Actual_R{_rn}"
-                        st.dataframe(
-                            _eval_df[["Institute", "Academic Program Name",
-                                      _pred_col, _act_col, "Abs_Error"]].head(20),
-                            hide_index=True,
-                        )
+                    with st.expander(f"📊 R{_rn} 2026 Model Evaluation"):
+                        _eval_df = evaluate_round_cached(_model_sb, _r_actuals, _rn, year=PREDICT_YEAR)
+                        if _eval_df.empty:
+                            st.caption("No matched slots.")
+                        else:
+                            st.metric("MAE", f"{int(_eval_df['Abs_Error'].mean()):,}")
+                            st.metric("Median AE", f"{int(_eval_df['Abs_Error'].median()):,}")
+                            st.caption("% of slots within error threshold:")
+                            for _thresh, _label in [(500, "±500"), (1000, "±1,000"),
+                                                    (2000, "±2,000"), (5000, "±5,000")]:
+                                _frac = (_eval_df["Abs_Error"] <= _thresh).mean()
+                                st.markdown(f"<small>{_label}: **{_frac*100:.1f}%**</small>",
+                                            unsafe_allow_html=True)
+                                st.progress(_frac)
+                            _pred_col = f"Predicted_R{_rn}"
+                            _act_col  = f"Actual_R{_rn}"
+                            st.caption("Worst-predicted slots:")
+                            st.dataframe(
+                                _eval_df[["Institute", "Academic Program Name",
+                                          _pred_col, _act_col, "Abs_Error"]].head(20),
+                                hide_index=True,
+                            )
 
 # Auto-predict on fresh load when URL already has saved inputs
 _auto_predict = _HAD_URL_STATE and "results_df" not in st.session_state
