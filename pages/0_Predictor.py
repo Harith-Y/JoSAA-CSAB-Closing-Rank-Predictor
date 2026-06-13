@@ -932,6 +932,32 @@ with st.sidebar:
         "gender":    "FO" if gender_raw == "Female-only" else "GN",
     })
 
+    # R1 2026 Model Evaluation (sidebar, josaa only, shown after first predict)
+    if source == "josaa" and "results_df" in st.session_state:
+        r1_actuals_sb = load_round1_actuals_cached()
+        if r1_actuals_sb:
+            st.markdown("---")
+            st.markdown("**📊 R1 2026 — Model Evaluation**")
+            _model_sb, _ = load_model_cached(source)
+            if _model_sb is not None:
+                _eval_df = evaluate_round1(_model_sb, r1_actuals_sb, year=PREDICT_YEAR)
+                if not _eval_df.empty:
+                    _mae    = int(_eval_df["Abs_Error"].mean())
+                    _med    = int(_eval_df["Abs_Error"].median())
+                    _w500   = int((_eval_df["Abs_Error"] <= 500).sum())
+                    _w2000  = int((_eval_df["Abs_Error"] <= 2000).sum())
+                    _total  = len(_eval_df)
+                    st.metric("MAE (all slots)", f"{_mae:,}")
+                    st.metric("Median AE", f"{_med:,}")
+                    st.metric("Within ±500", f"{_w500:,} / {_total:,}")
+                    st.metric("Within ±2,000", f"{_w2000:,} / {_total:,}")
+                    with st.expander("Worst-predicted slots (top 20)"):
+                        _worst = _eval_df[[
+                            "Institute", "Academic Program Name",
+                            "Predicted_R1", "Actual_R1", "Abs_Error",
+                        ]].head(20)
+                        st.dataframe(_worst, hide_index=True)
+
 # Auto-predict on fresh load when URL already has saved inputs
 _auto_predict = _HAD_URL_STATE and "results_df" not in st.session_state
 
@@ -1054,11 +1080,10 @@ c4.metric(
     help="Total number of college–program combinations matching your profile across all categories.",
 )
 
-# Round 1 2026 anchoring notice + evaluation 
+# Round 1 2026 anchoring notice
 if source == "josaa":
     r1_actuals_disp = load_round1_actuals_cached()
     n_anchored = int(df.get("Anchored", pd.Series(dtype=bool)).sum()) if "Anchored" in df.columns else 0
-
     if r1_actuals_disp:
         st.info(
             f"**Round 1 2026 data integrated** - predictions for R2-R6 are anchored "
@@ -1066,36 +1091,6 @@ if source == "josaa":
             f"({n_anchored} of {len(df)} results in your selection).",
             icon="📌",
         )
-
-    with st.expander("📊 Round 1 2026 - Model Evaluation", expanded=False):
-        if not r1_actuals_disp:
-            st.info("Round 1 2026 data not found (`data/Round1-2026.csv`).")
-        else:
-            eval_df = evaluate_round1(model, r1_actuals_disp, year=PREDICT_YEAR)
-            if eval_df.empty:
-                st.info("No slots matched between the model and Round 1 2026 data.")
-            else:
-                mae    = int(eval_df["Abs_Error"].mean())
-                median = int(eval_df["Abs_Error"].median())
-                w500   = int((eval_df["Abs_Error"] <= 500).sum())
-                w2000  = int((eval_df["Abs_Error"] <= 2000).sum())
-                total  = len(eval_df)
-
-                ec1, ec2, ec3, ec4 = st.columns(4)
-                ec1.metric("MAE (all slots)", f"{mae:,}",
-                           help="Mean absolute error across all matched slots.")
-                ec2.metric("Median AE", f"{median:,}",
-                           help="Median absolute error - less sensitive to outliers.")
-                ec3.metric("Within ±500 ranks", f"{w500:,} / {total:,}",
-                           help="Slots where predicted R1 was within 500 of actual.")
-                ec4.metric("Within ±2 000 ranks", f"{w2000:,} / {total:,}",
-                           help="Slots where predicted R1 was within 2 000 of actual.")
-
-                st.caption("Worst-predicted slots (top 20 by absolute error):")
-                worst = eval_df[["Institute", "Academic Program Name", "Quota",
-                                 "Seat Type", "Gender", "Predicted_R1",
-                                 "Actual_R1", "Error", "Abs_Error"]].head(20)
-                st.dataframe(worst, hide_index=True, width="stretch")
 
 export_cols = [
     "Category", "Institute", "Academic Program Name", "Quota", "Seat Type", "Gender",
