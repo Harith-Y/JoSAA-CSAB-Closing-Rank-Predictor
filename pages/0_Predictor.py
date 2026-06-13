@@ -937,12 +937,6 @@ with st.sidebar:
         "gender":    "FO" if gender_raw == "Female-only" else "GN",
     })
 
-    # Actuals notice (josaa only, shown when round data is available)
-    if source == "josaa":
-        _all_actuals_sb = load_all_actuals_cached()
-        if _all_actuals_sb:
-            _rounds_label = " + ".join(f"R{r}" for r in sorted(_all_actuals_sb))
-            st.caption(f"📌 {_rounds_label} 2026 actuals loaded - predictions anchored.")
 
 # Auto-predict on fresh load when URL already has saved inputs
 _auto_predict = _HAD_URL_STATE and "results_df" not in st.session_state
