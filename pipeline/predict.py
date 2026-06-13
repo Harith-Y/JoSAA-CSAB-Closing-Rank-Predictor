@@ -24,10 +24,9 @@ import os
 import pickle
 import numpy as np
 import pandas as pd
-from .config import MODEL_PATH, PREDICT_YEAR, ALL_ROUNDS
+from .config import MODEL_PATH, PREDICT_YEAR, ALL_ROUNDS, CURRENT_ROUND_DATA
 
-SEAT_MATRIX_PATH  = os.path.join(os.path.dirname(__file__), "..", "seat_matrix.csv")
-ROUND1_2026_PATH  = os.path.join(os.path.dirname(__file__), "..", "data", "Round1-2026.csv")
+SEAT_MATRIX_PATH = os.path.join(os.path.dirname(__file__), "..", "seat_matrix.csv")
 
 
 def load_model(path: str = MODEL_PATH) -> dict:
@@ -76,9 +75,9 @@ def load_seat_matrix(path: str = SEAT_MATRIX_PATH) -> dict:
     }
 
 
-def load_round1_actuals(path: str = ROUND1_2026_PATH) -> dict:
+def load_actuals(path: str) -> dict:
     """
-    Load actual Round 1 2026 closing ranks.
+    Load actual closing ranks from a single round CSV.
     Returns {(institute, program, quota, seat_type, gender): closing_rank}.
     """
     if not os.path.exists(path):
@@ -102,29 +101,51 @@ def load_round1_actuals(path: str = ROUND1_2026_PATH) -> dict:
     return result
 
 
-def evaluate_round1(
+def load_all_actuals(
+    round_data: dict[int, str] | None = None,
+) -> dict[int, dict]:
+    """
+    Load actuals for all configured rounds.
+
+    Returns {round_num: {slot_key: closing_rank}}.
+    Only rounds whose CSV file exists are included.
+    """
+    if round_data is None:
+        round_data = CURRENT_ROUND_DATA
+    return {r: data for r, path in round_data.items() if (data := load_actuals(path))}
+
+
+def load_round1_actuals(path: str | None = None) -> dict:
+    """Backward-compat wrapper: load R1 actuals from CURRENT_ROUND_DATA or a given path."""
+    if path is None:
+        path = CURRENT_ROUND_DATA.get(1, "")
+    return load_actuals(path)
+
+
+def evaluate_round(
     model: dict,
-    round1_actuals: dict,
+    actuals: dict,
+    round_num: int,
     year: int = PREDICT_YEAR,
 ) -> pd.DataFrame:
     """
-    Compare model's R1 predictions against actual Round 1 closing ranks.
+    Compare model's predictions for round_num against actual closing ranks.
 
-    Returns a DataFrame with columns:
-        Institute | Academic Program Name | Quota | Seat Type | Gender |
-        Predicted_R1 | Actual_R1 | Error | Abs_Error | Pct_Error
+    Returns DataFrame with Predicted_R{n}, Actual_R{n}, Error, Abs_Error, Pct_Error,
     sorted by Abs_Error descending.
     """
     slots = model["slots"]
+    pred_col = f"Predicted_R{round_num}"
+    actual_col = f"Actual_R{round_num}"
     rows = []
     for key, slot_model in slots.items():
         inst, prog, q, st, g, et = key
-        actual = round1_actuals.get((inst, prog, q, st, g))
+        actual = actuals.get((inst, prog, q, st, g))
         if actual is None:
             continue
         w = model.get("ensemble_weight")
-        pred_r1 = slot_model.predict_round(1, year, w=w)
-        error = int(round(pred_r1)) - actual
+        pred = slot_model.predict_round(round_num, year, w=w)
+        error = int(round(pred)) - actual
         rows.append({
             "Institute":             inst,
             "Academic Program Name": prog,
@@ -132,8 +153,8 @@ def evaluate_round1(
             "Seat Type":             st,
             "Gender":                g,
             "Exam Type":             et,
-            "Predicted_R1":          int(round(pred_r1)),
-            "Actual_R1":             actual,
+            pred_col:                int(round(pred)),
+            actual_col:              actual,
             "Error":                 error,
             "Abs_Error":             abs(error),
             "Pct_Error":             round(100.0 * abs(error) / max(actual, 1), 1),
@@ -146,39 +167,58 @@ def evaluate_round1(
     return out
 
 
-def _anchor_with_round1(
+def evaluate_round1(model: dict, round1_actuals: dict, year: int = PREDICT_YEAR) -> pd.DataFrame:
+    """Backward-compat wrapper for evaluate_round(... round_num=1)."""
+    return evaluate_round(model, round1_actuals, 1, year)
+
+
+def _anchor_with_actuals(
     slot_model,
     round_preds: dict[int, int],
-    actual_r1: int,
+    actuals_by_round: dict[int, int],
     rounds: list[int],
 ) -> dict[int, int]:
     """
-    Adjust per-round predictions using actual Round 1 as an anchor.
+    Anchor all-round predictions using a weighted aggregate of observed actuals.
 
-    Uses historical round ratios:  anchored_r[k] = actual_r1 * (ratio[k] / ratio[1])
-    Falls back to simple proportional scaling if ratio[1] is unavailable.
+    For each observed round r with actual closing rank C*_r, independently estimate
+    the final-round closing rank:
+        F_r = C*_r / ρ̄_{s,r}
+    Then combine with weights proportional to round number (later rounds are closer
+    to final and have lower ratio variance, so r is a reasonable reliability proxy):
+        F̂ = Σ(r × F_r) / Σ(r)
+        anchored_Rk = F̂ × ρ̄_{s,k}
+
+    With R1 only  → 100% R1 estimate.
+    With R1 + R2  → R1 gets 33%, R2 gets 67%.
+    With R1+R2+R3 → 17% / 33% / 50%.
     """
-    ratios = {}
+    ratios: dict[int, float] = {}
     if hasattr(slot_model, "get_round_ratios"):
         ratios = slot_model.get_round_ratios()
 
-    r1_ratio = ratios.get(1)
+    if ratios:
+        total_w = 0.0
+        weighted_final = 0.0
+        for r_obs, actual in actuals_by_round.items():
+            r_ratio = ratios.get(r_obs)
+            if r_ratio and r_ratio > 0:
+                weighted_final += r_obs * (actual / r_ratio)
+                total_w += r_obs
+        if total_w > 0:
+            estimated_final = weighted_final / total_w
+            max_r = slot_model.max_round
+            return {
+                r: int(round(max(1.0, estimated_final * ratios.get(r, ratios.get(max_r, 1.0)))))
+                for r in rounds
+            }
 
-    if r1_ratio and r1_ratio > 0:
-        # Anchor via historical round ratios: estimated_final = actual_r1 / ratio[1]
-        estimated_final = actual_r1 / r1_ratio
-        anchored = {}
-        max_r = slot_model.max_round
-        for r in rounds:
-            rk_ratio = ratios.get(r, ratios.get(max_r, 1.0))
-            anchored[r] = int(round(max(1.0, estimated_final * rk_ratio)))
-        return anchored
-
-    # Fallback: scale all model predictions by (actual_r1 / model_pred_r1)
-    model_r1 = round_preds.get(1)
-    if not model_r1:
+    # Fallback: proportional scale from the latest observed round
+    latest_r = max(actuals_by_round)
+    model_pred = round_preds.get(latest_r)
+    if not model_pred:
         return round_preds
-    scale = actual_r1 / model_r1
+    scale = actuals_by_round[latest_r] / model_pred
     return {r: int(round(max(1.0, p * scale))) for r, p in round_preds.items()}
 
 
@@ -208,7 +248,7 @@ def predict(
     reach_threshold: float = 1.20,   # fallback when interval unavailable
     seat_matrix:     dict | None = None,  # (inst,prog,quota,st,gender) -> seats
     coverage:        float = 0.90,   # prediction interval coverage level
-    round1_actuals:  dict | None = None,  # (inst,prog,quota,st,gender) -> actual R1 rank
+    actual_rounds:   dict[int, dict] | None = None,  # {round_num: {slot_key: closing_rank}}
 ) -> pd.DataFrame:
     if model is None:
         model = load_model()
@@ -231,17 +271,20 @@ def predict(
         w = model.get("ensemble_weight")
         round_preds = slot_model.predict_all_rounds(year, rounds, w=w)
 
-        # R1 anchor: if actual 2026 Round 1 data is available for this slot,
-        # replace all round predictions with ratio-anchored estimates.
-        # The interval half-width is preserved from the model (uncertainty is
-        # the same); only the center shifts to match the actual R1 data.
+        # Multi-round anchor: collect observed actuals for this slot across all
+        # available rounds, then use weighted-aggregate anchoring.
+        # The interval half-width is preserved (uncertainty unchanged); only
+        # the centre shifts to match the weighted estimate of the final close.
         anchored = False
-        actual_r1 = None
-        if round1_actuals and 1 in rounds:
-            actual_r1 = round1_actuals.get((inst, prog, q, st, g))
-        if actual_r1:
-            round_preds = _anchor_with_round1(slot_model, round_preds, actual_r1, rounds)
-            anchored = True
+        if actual_rounds:
+            slot_actuals = {
+                r: v
+                for r, r_data in actual_rounds.items()
+                if (v := r_data.get((inst, prog, q, st, g))) is not None
+            }
+            if slot_actuals:
+                round_preds = _anchor_with_actuals(slot_model, round_preds, slot_actuals, rounds)
+                anchored = True
 
         # Final round = highest round this slot was seen in *that is also in
         # the requested rounds list*.  Some old data has round 7 (JOSAA special

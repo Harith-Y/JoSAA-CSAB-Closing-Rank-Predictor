@@ -99,6 +99,14 @@ SOURCES = {
     },
 }
 
-# Model artifact paths 
+# Model artifact paths
 MODEL_DIR   = os.path.join(os.path.dirname(__file__), "..", "models")
 MODEL_PATH  = os.path.join(MODEL_DIR, "josaa_model.pkl")   # default (JOSAA)
+
+# Actual round data available for the current counselling year (JoSAA only).
+# Keys are round numbers; values are paths to the corresponding CSV files.
+# To add R2 when it drops: add  2: os.path.join(DATA_DIR, "Round2-2026.csv")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+CURRENT_ROUND_DATA: dict[int, str] = {
+    1: os.path.join(DATA_DIR, "Round1-2026.csv"),
+}

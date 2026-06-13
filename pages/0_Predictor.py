@@ -7,8 +7,8 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
-from pipeline.config import PREDICT_YEAR, SOURCES, MODEL_DIR
-from pipeline.predict import predict, load_round1_actuals, evaluate_round1
+from pipeline.config import PREDICT_YEAR, SOURCES, MODEL_DIR, CURRENT_ROUND_DATA
+from pipeline.predict import predict, load_all_actuals, evaluate_round
 
 # Constants
 SEAT_TYPES = [
@@ -27,10 +27,10 @@ QUOTAS = {
 CAT_COLOR = {"safe": "#27ae60", "match": "#f39c12", "reach": "#e74c3c"}
 CAT_ICON  = {"safe": "🟢", "match": "🟡", "reach": "🔴"}
 
-# Round 1 2026 actuals cache (josaa only; loaded once per session)
+# All available round actuals cache (josaa only; loaded once per session)
 @st.cache_data(show_spinner=False)
-def load_round1_actuals_cached() -> dict:
-    return load_round1_actuals()
+def load_all_actuals_cached() -> dict[int, dict]:
+    return load_all_actuals(CURRENT_ROUND_DATA)
 
 
 # Model cache
@@ -932,31 +932,36 @@ with st.sidebar:
         "gender":    "FO" if gender_raw == "Female-only" else "GN",
     })
 
-    # R1 2026 Model Evaluation (sidebar, josaa only, shown after first predict)
+    # Model Evaluation sidebar (josaa only, shown after first predict)
     if source == "josaa" and "results_df" in st.session_state:
-        r1_actuals_sb = load_round1_actuals_cached()
-        if r1_actuals_sb:
-            st.markdown("---")
-            st.markdown("**📊 R1 2026 — Model Evaluation**")
+        _all_actuals_sb = load_all_actuals_cached()
+        if _all_actuals_sb:
             _model_sb, _ = load_model_cached(source)
             if _model_sb is not None:
-                _eval_df = evaluate_round1(_model_sb, r1_actuals_sb, year=PREDICT_YEAR)
-                if not _eval_df.empty:
-                    _mae    = int(_eval_df["Abs_Error"].mean())
-                    _med    = int(_eval_df["Abs_Error"].median())
-                    _w500   = int((_eval_df["Abs_Error"] <= 500).sum())
-                    _w2000  = int((_eval_df["Abs_Error"] <= 2000).sum())
-                    _total  = len(_eval_df)
-                    st.metric("MAE (all slots)", f"{_mae:,}")
-                    st.metric("Median AE", f"{_med:,}")
-                    st.metric("Within ±500", f"{_w500:,} / {_total:,}")
-                    st.metric("Within ±2,000", f"{_w2000:,} / {_total:,}")
-                    with st.expander("Worst-predicted slots (top 20)"):
-                        _worst = _eval_df[[
-                            "Institute", "Academic Program Name",
-                            "Predicted_R1", "Actual_R1", "Abs_Error",
-                        ]].head(20)
-                        st.dataframe(_worst, hide_index=True)
+                st.markdown("---")
+                for _rn, _r_actuals in sorted(_all_actuals_sb.items()):
+                    st.markdown(f"**📊 R{_rn} 2026 - Model Evaluation**")
+                    _eval_df = evaluate_round(_model_sb, _r_actuals, _rn, year=PREDICT_YEAR)
+                    if _eval_df.empty:
+                        st.caption("No matched slots.")
+                        continue
+                    st.metric("MAE", f"{int(_eval_df['Abs_Error'].mean()):,}")
+                    st.metric("Median AE", f"{int(_eval_df['Abs_Error'].median()):,}")
+                    st.caption("% of slots within error threshold:")
+                    for _thresh, _label in [(500, "±500"), (1000, "±1,000"),
+                                            (2000, "±2,000"), (5000, "±5,000")]:
+                        _frac = (_eval_df["Abs_Error"] <= _thresh).mean()
+                        st.markdown(f"<small>{_label}: **{_frac*100:.1f}%**</small>",
+                                    unsafe_allow_html=True)
+                        st.progress(_frac)
+                    with st.expander(f"Worst-predicted R{_rn} slots"):
+                        _pred_col = f"Predicted_R{_rn}"
+                        _act_col  = f"Actual_R{_rn}"
+                        st.dataframe(
+                            _eval_df[["Institute", "Academic Program Name",
+                                      _pred_col, _act_col, "Abs_Error"]].head(20),
+                            hide_index=True,
+                        )
 
 # Auto-predict on fresh load when URL already has saved inputs
 _auto_predict = _HAD_URL_STATE and "results_df" not in st.session_state
@@ -984,22 +989,22 @@ if predict_btn or _auto_predict:
         )
         st.stop()
 
-    r1_actuals = load_round1_actuals_cached() if source == "josaa" else {}
+    _actual_rounds = load_all_actuals_cached() if source == "josaa" else {}
 
     with st.spinner("Computing predictions…"):
         df = predict(
-            rank            = rank,
-            exam_type       = exam_type,
-            quota           = quota,
-            seat_type       = seat_type,
-            gender          = gender,
-            model           = model,
-            rounds          = cfg["rounds"],
-            include_reach   = True,
-            safe_threshold  = cfg["safe_threshold"],
-            reach_threshold = cfg["reach_threshold"],
-            coverage        = coverage,
-            round1_actuals  = r1_actuals or None,
+            rank           = rank,
+            exam_type      = exam_type,
+            quota          = quota,
+            seat_type      = seat_type,
+            gender         = gender,
+            model          = model,
+            rounds         = cfg["rounds"],
+            include_reach  = True,
+            safe_threshold = cfg["safe_threshold"],
+            reach_threshold= cfg["reach_threshold"],
+            coverage       = coverage,
+            actual_rounds  = _actual_rounds or None,
         )
 
     st.session_state["results_df"]  = df
@@ -1080,14 +1085,15 @@ c4.metric(
     help="Total number of college–program combinations matching your profile across all categories.",
 )
 
-# Round 1 2026 anchoring notice
+# Anchoring notice
 if source == "josaa":
-    r1_actuals_disp = load_round1_actuals_cached()
-    n_anchored = int(df.get("Anchored", pd.Series(dtype=bool)).sum()) if "Anchored" in df.columns else 0
-    if r1_actuals_disp:
+    _actuals_disp = load_all_actuals_cached()
+    n_anchored = int(df["Anchored"].sum()) if "Anchored" in df.columns else 0
+    if _actuals_disp:
+        _rounds_str = " + ".join(f"R{r}" for r in sorted(_actuals_disp))
         st.info(
-            f"**Round 1 2026 data integrated** - predictions for R2-R6 are anchored "
-            f"to actual Round 1 2026 closing ranks where available "
+            f"**{_rounds_str} 2026 data integrated**, predictions are anchored "
+            f"to actual closing ranks where available "
             f"({n_anchored} of {len(df)} results in your selection).",
             icon="📌",
         )
