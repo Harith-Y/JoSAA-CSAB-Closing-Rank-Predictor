@@ -32,6 +32,7 @@ Usage examples:
       --gender Gender-Neutral
 """
 
+import torch  # must import before pandas/numpy to avoid DLL conflicts on Windows
 import argparse
 import os
 import sys

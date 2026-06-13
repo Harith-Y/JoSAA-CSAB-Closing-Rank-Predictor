@@ -23,6 +23,7 @@ the historical median for that round.
 import os
 import pickle
 from typing import TYPE_CHECKING
+import torch  # must load before sklearn/numpy to avoid DLL conflicts on Windows
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
@@ -406,6 +407,10 @@ class SlotModel:
         """Return {round_no: predicted_close_rank} for each requested round."""
         return {r: int(round(self.predict_round(r, year, w=w))) for r in rounds}
 
+    def get_round_ratios(self) -> dict[int, float]:
+        """Return {round_no: mean(close_r / close_final)} across all training years."""
+        return self.round_ratios.copy()
+
 
 class _GPMLPSlotAdapter:
     """
@@ -432,6 +437,15 @@ class _GPMLPSlotAdapter:
     def predict_interval(self, round_no: int, year: int,
                          coverage: float = 0.90) -> tuple[float, float]:
         return self._model.predict_interval(self._slot_key, round_no, year, coverage)
+
+    def get_round_ratios(self) -> dict[int, float]:
+        gp_m = self._model._gp_slots.get(self._slot_key)
+        if gp_m is not None:
+            return gp_m.round_ratios.copy()
+        max_med = self.round_medians.get(self.max_round, 0.0)
+        if not max_med:
+            return {}
+        return {r: med / max_med for r, med in self.round_medians.items()}
 
 
 class GPMLPEnsemble:

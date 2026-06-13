@@ -187,7 +187,7 @@ class GlobalMLPModel:
         ]:
             self.encoders[key] = _CatEncoder(vals)
 
-        # Per-slot round stats (medians, abs deviations) for prediction intervals
+        # Per-slot round stats (medians, abs deviations, round ratios) for prediction intervals
         all_log_medians: list[float] = []
         for key, grp in df.groupby(SLOT_COLS):
             r_stats: dict = {}
@@ -201,8 +201,20 @@ class GlobalMLPModel:
                 lm = float(np.log(max(med, 1.0)))
                 self._log_median[(tuple(key), int(r))] = lm
                 all_log_medians.append(lm)
-            r_stats["max_round"] = int(grp[COL_ROUND].max())
+            max_r = int(grp[COL_ROUND].max())
+            r_stats["max_round"] = max_r
             r_stats["n_years"]   = int(grp[COL_YEAR].nunique())
+            # Round ratios: mean(close_r / close_final) across all training years
+            ratio_accum: dict[int, list] = {}
+            for _yr, yr_grp in grp.groupby(COL_YEAR):
+                yr_rounds = yr_grp.set_index(COL_ROUND)[COL_CLOSE_RANK].to_dict()
+                fin_r = int(yr_grp[COL_ROUND].max())
+                fin_c = float(yr_rounds.get(fin_r, 0))
+                if fin_c <= 0:
+                    continue
+                for _r, _c in yr_rounds.items():
+                    ratio_accum.setdefault(int(_r), []).append(float(_c) / fin_c)
+            r_stats["round_ratios"] = {r: float(np.mean(v)) for r, v in ratio_accum.items()}
             self.slot_stats[tuple(key)] = r_stats
         self._global_log_median = float(np.mean(all_log_medians)) if all_log_medians else 0.0
 
@@ -353,6 +365,9 @@ class _GlobalSlotAdapter:
     def predict_interval(self, round_no: int, year: int,
                          coverage: float = 0.90) -> tuple[float, float]:
         return self._model.predict_interval(self._slot_key, round_no, year, coverage)
+
+    def get_round_ratios(self) -> dict[int, float]:
+        return self._model.slot_stats.get(self._slot_key, {}).get("round_ratios", {})
 
 
 # ---------------------------------------------------------------------------

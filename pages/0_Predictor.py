@@ -8,7 +8,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from pipeline.config import PREDICT_YEAR, SOURCES, MODEL_DIR
-from pipeline.predict import predict
+from pipeline.predict import predict, load_round1_actuals, evaluate_round1
 
 # Constants
 SEAT_TYPES = [
@@ -26,6 +26,12 @@ QUOTAS = {
 
 CAT_COLOR = {"safe": "#27ae60", "match": "#f39c12", "reach": "#e74c3c"}
 CAT_ICON  = {"safe": "🟢", "match": "🟡", "reach": "🔴"}
+
+# Round 1 2026 actuals cache (josaa only; loaded once per session)
+@st.cache_data(show_spinner=False)
+def load_round1_actuals_cached() -> dict:
+    return load_round1_actuals()
+
 
 # Model cache
 @st.cache_resource(show_spinner="Loading model…")
@@ -952,6 +958,8 @@ if predict_btn or _auto_predict:
         )
         st.stop()
 
+    r1_actuals = load_round1_actuals_cached() if source == "josaa" else {}
+
     with st.spinner("Computing predictions…"):
         df = predict(
             rank            = rank,
@@ -965,6 +973,7 @@ if predict_btn or _auto_predict:
             safe_threshold  = cfg["safe_threshold"],
             reach_threshold = cfg["reach_threshold"],
             coverage        = coverage,
+            round1_actuals  = r1_actuals or None,
         )
 
     st.session_state["results_df"]  = df
@@ -1044,6 +1053,49 @@ c4.metric(
     "Total", len(df),
     help="Total number of college–program combinations matching your profile across all categories.",
 )
+
+# Round 1 2026 anchoring notice + evaluation 
+if source == "josaa":
+    r1_actuals_disp = load_round1_actuals_cached()
+    n_anchored = int(df.get("Anchored", pd.Series(dtype=bool)).sum()) if "Anchored" in df.columns else 0
+
+    if r1_actuals_disp:
+        st.info(
+            f"**Round 1 2026 data integrated** - predictions for R2-R6 are anchored "
+            f"to actual Round 1 2026 closing ranks where available "
+            f"({n_anchored} of {len(df)} results in your selection).",
+            icon="📌",
+        )
+
+    with st.expander("📊 Round 1 2026 - Model Evaluation", expanded=False):
+        if not r1_actuals_disp:
+            st.info("Round 1 2026 data not found (`data/Round1-2026.csv`).")
+        else:
+            eval_df = evaluate_round1(model, r1_actuals_disp, year=PREDICT_YEAR)
+            if eval_df.empty:
+                st.info("No slots matched between the model and Round 1 2026 data.")
+            else:
+                mae    = int(eval_df["Abs_Error"].mean())
+                median = int(eval_df["Abs_Error"].median())
+                w500   = int((eval_df["Abs_Error"] <= 500).sum())
+                w2000  = int((eval_df["Abs_Error"] <= 2000).sum())
+                total  = len(eval_df)
+
+                ec1, ec2, ec3, ec4 = st.columns(4)
+                ec1.metric("MAE (all slots)", f"{mae:,}",
+                           help="Mean absolute error across all matched slots.")
+                ec2.metric("Median AE", f"{median:,}",
+                           help="Median absolute error - less sensitive to outliers.")
+                ec3.metric("Within ±500 ranks", f"{w500:,} / {total:,}",
+                           help="Slots where predicted R1 was within 500 of actual.")
+                ec4.metric("Within ±2 000 ranks", f"{w2000:,} / {total:,}",
+                           help="Slots where predicted R1 was within 2 000 of actual.")
+
+                st.caption("Worst-predicted slots (top 20 by absolute error):")
+                worst = eval_df[["Institute", "Academic Program Name", "Quota",
+                                 "Seat Type", "Gender", "Predicted_R1",
+                                 "Actual_R1", "Error", "Abs_Error"]].head(20)
+                st.dataframe(worst, hide_index=True, width="stretch")
 
 export_cols = [
     "Category", "Institute", "Academic Program Name", "Quota", "Seat Type", "Gender",
