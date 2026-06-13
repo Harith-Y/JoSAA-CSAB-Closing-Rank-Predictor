@@ -8,7 +8,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from pipeline.config import PREDICT_YEAR, SOURCES, MODEL_DIR, CURRENT_ROUND_DATA
-from pipeline.predict import predict, load_all_actuals, evaluate_round
+from pipeline.predict import predict, load_all_actuals
 
 # Constants
 SEAT_TYPES = [
@@ -31,11 +31,6 @@ CAT_ICON  = {"safe": "🟢", "match": "🟡", "reach": "🔴"}
 @st.cache_data(show_spinner=False)
 def load_all_actuals_cached() -> dict[int, dict]:
     return load_all_actuals(CURRENT_ROUND_DATA)
-
-
-@st.cache_data(show_spinner=False)
-def evaluate_round_cached(_model, actuals: dict, round_num: int, year: int) -> "pd.DataFrame":
-    return evaluate_round(_model, actuals, round_num, year)
 
 
 # Model cache
@@ -937,37 +932,18 @@ with st.sidebar:
         "gender":    "FO" if gender_raw == "Female-only" else "GN",
     })
 
-    # Model Evaluation sidebar (josaa only, shown once model pkl is on disk)
+    # Model Evaluation link (josaa only, shown once model pkl is on disk)
     if source == "josaa":
         _all_actuals_sb = load_all_actuals_cached()
         _model_pkl = os.path.join(MODEL_DIR, SOURCES[source]["model"])
         if _all_actuals_sb and os.path.exists(_model_pkl):
-            _model_sb, _ = load_model_cached(source)
-            if _model_sb is not None:
-                st.markdown("---")
-                for _rn, _r_actuals in sorted(_all_actuals_sb.items()):
-                    with st.expander(f"📊 R{_rn} 2026 Model Evaluation"):
-                        _eval_df = evaluate_round_cached(_model_sb, _r_actuals, _rn, year=PREDICT_YEAR)
-                        if _eval_df.empty:
-                            st.caption("No matched slots.")
-                        else:
-                            st.metric("MAE", f"{int(_eval_df['Abs_Error'].mean()):,}")
-                            st.metric("Median AE", f"{int(_eval_df['Abs_Error'].median()):,}")
-                            st.caption("% of slots within error threshold:")
-                            for _thresh, _label in [(500, "±500"), (1000, "±1,000"),
-                                                    (2000, "±2,000"), (5000, "±5,000")]:
-                                _frac = (_eval_df["Abs_Error"] <= _thresh).mean()
-                                st.markdown(f"<small>{_label}: **{_frac*100:.1f}%**</small>",
-                                            unsafe_allow_html=True)
-                                st.progress(_frac)
-                            _pred_col = f"Predicted_R{_rn}"
-                            _act_col  = f"Actual_R{_rn}"
-                            st.caption("Worst-predicted slots:")
-                            st.dataframe(
-                                _eval_df[["Institute", "Academic Program Name",
-                                          _pred_col, _act_col, "Abs_Error"]].head(20),
-                                hide_index=True,
-                            )
+            st.markdown("---")
+            _rounds_label = " + ".join(f"R{r}" for r in sorted(_all_actuals_sb))
+            st.page_link(
+                "pages/3_Model_Evaluation.py",
+                label=f"📊 {_rounds_label} 2026 Model Evaluation",
+                use_container_width=True,
+            )
 
 # Auto-predict on fresh load when URL already has saved inputs
 _auto_predict = _HAD_URL_STATE and "results_df" not in st.session_state
