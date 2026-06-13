@@ -932,10 +932,11 @@ with st.sidebar:
         "gender":    "FO" if gender_raw == "Female-only" else "GN",
     })
 
-    # Model Evaluation sidebar (josaa only, shown after first predict)
-    if source == "josaa" and "results_df" in st.session_state:
+    # Model Evaluation sidebar (josaa only, shown once model pkl is on disk)
+    if source == "josaa":
         _all_actuals_sb = load_all_actuals_cached()
-        if _all_actuals_sb:
+        _model_pkl = os.path.join(MODEL_DIR, SOURCES[source]["model"])
+        if _all_actuals_sb and os.path.exists(_model_pkl):
             _model_sb, _ = load_model_cached(source)
             if _model_sb is not None:
                 st.markdown("---")
