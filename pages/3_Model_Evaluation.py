@@ -19,9 +19,11 @@ def _load_model():
         return pickle.load(f)
 
 
+_ROUND_DATA_KEY = tuple(sorted(CURRENT_ROUND_DATA.items()))
+
 @st.cache_data(show_spinner=False)
-def _load_actuals() -> dict[int, dict]:
-    return load_all_actuals(CURRENT_ROUND_DATA)
+def _load_actuals(round_data: tuple = _ROUND_DATA_KEY) -> dict[int, dict]:
+    return load_all_actuals(dict(round_data))
 
 
 @st.cache_data(show_spinner=False)

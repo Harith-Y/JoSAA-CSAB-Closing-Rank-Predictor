@@ -27,10 +27,12 @@ QUOTAS = {
 CAT_COLOR = {"safe": "#27ae60", "match": "#f39c12", "reach": "#e74c3c"}
 CAT_ICON  = {"safe": "🟢", "match": "🟡", "reach": "🔴"}
 
-# All available round actuals cache (josaa only; loaded once per session)
+# Tuple form of CURRENT_ROUND_DATA is the cache key; adding a round auto-busts cache.
+_ROUND_DATA_KEY = tuple(sorted(CURRENT_ROUND_DATA.items()))
+
 @st.cache_data(show_spinner=False)
-def load_all_actuals_cached() -> dict[int, dict]:
-    return load_all_actuals(CURRENT_ROUND_DATA)
+def load_all_actuals_cached(round_data: tuple = _ROUND_DATA_KEY) -> dict[int, dict]:
+    return load_all_actuals(dict(round_data))
 
 
 # Model cache

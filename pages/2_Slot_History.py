@@ -67,7 +67,7 @@ def _fetch_supabase(
         return pd.DataFrame(), str(e)
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def _fetch_csv(source: str) -> pd.DataFrame:
     cfg = SOURCES[source]
     csv_path = cfg["csv"]
