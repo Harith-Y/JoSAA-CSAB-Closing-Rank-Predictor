@@ -109,4 +109,5 @@ MODEL_PATH  = os.path.join(MODEL_DIR, "josaa_model.pkl")   # default (JOSAA)
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 CURRENT_ROUND_DATA: dict[int, str] = {
     1: os.path.join(DATA_DIR, "Round1-2026.csv"),
+    2: os.path.join(DATA_DIR, "Round2-2026.csv"),
 }
