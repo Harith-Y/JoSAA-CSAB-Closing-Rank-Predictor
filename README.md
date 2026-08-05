@@ -27,7 +27,7 @@ JOSAA/
 │   ├── 2_Slot_History.py      # Per-slot closing-rank history
 │   └── 3_Model_Evaluation.py  # Live model accuracy vs announced actuals
 ├── data/
-│   ├── josaa_ranks.csv        # JoSAA dataset (549,726 rows, 2016–2026 R1-R2)
+│   ├── josaa_ranks.csv        # JoSAA dataset (588,619 rows, 2016–2026 R1-R5)
 │   ├── csab_ranks.csv         # CSAB dataset (~47k rows, 2021–2025)
 │   ├── Round1-2026.csv        # JoSAA 2026 Round 1 actuals
 │   └── Round2-2026.csv        # JoSAA 2026 Round 2 actuals

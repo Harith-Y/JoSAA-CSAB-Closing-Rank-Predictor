@@ -52,7 +52,7 @@ if not all_actuals:
     st.stop()
 
 for rn, r_actuals in sorted(all_actuals.items()):
-    st.subheader(f"Round {rn} — {PREDICT_YEAR}")
+    st.subheader(f"Round {rn} - {PREDICT_YEAR}")
     with st.spinner(f"Evaluating R{rn}…"):
         eval_df = _evaluate(model, r_actuals, rn, PREDICT_YEAR)
 

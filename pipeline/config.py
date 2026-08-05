@@ -112,4 +112,5 @@ CURRENT_ROUND_DATA: dict[int, str] = {
     2: os.path.join(DATA_DIR, "Round2-2026.csv"),
     3: os.path.join(DATA_DIR, "Round3-2026.csv"),
     4: os.path.join(DATA_DIR, "Round4-2026.csv"),
+    5: os.path.join(DATA_DIR, "Round5-2026.csv"),
 }

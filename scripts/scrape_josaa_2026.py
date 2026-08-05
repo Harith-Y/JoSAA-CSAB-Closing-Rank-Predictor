@@ -138,7 +138,7 @@ def scrape_round(page, round_val, round_num):
 
     opts = wait_for_options(page, SEL_SEAT_TYPE, timeout=10)
     if not opts:
-        print(" WARN: Seat Type dropdown empty — dumping selects for diagnosis:")
+        print(" WARN: Seat Type dropdown empty - dumping selects for diagnosis:")
         debug_selects(page)
         return False
 
@@ -173,7 +173,7 @@ def scrape_round(page, round_val, round_num):
     # Verify expected columns are present
     missing = [c for c in EXPECTED_HEADERS if c not in header]
     if missing:
-        print(f" WARN: missing columns {missing} — got {header}")
+        print(f" WARN: missing columns {missing} - got {header}")
 
     with open(out_path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
