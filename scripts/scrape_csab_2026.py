@@ -204,6 +204,15 @@ def main():
                         print(f"{len(rows) - 1} rows saved")
                         completed.add(round_label)
 
+                        # Save standalone per-round CSV for live anchoring
+                        per_round_path = os.path.join(DATA_DIR, f"CSAB_Round{round_label}-2026.csv")
+                        with open(per_round_path, "w", newline="", encoding="utf-8-sig") as pf:
+                            pw = csv.writer(pf)
+                            pw.writerow(rows[0])
+                            pw.writerows(rows[1:])
+                        print(f"  → also saved {per_round_path}")
+                        print(f"  Add to config.py: {round_label}: os.path.join(DATA_DIR, \"CSAB_Round{round_label}-2026.csv\")")
+
                     page.goto(URL, wait_until="networkidle")
                     time.sleep(1)
 

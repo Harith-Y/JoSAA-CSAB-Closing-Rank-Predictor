@@ -114,3 +114,10 @@ CURRENT_ROUND_DATA: dict[int, str] = {
     4: os.path.join(DATA_DIR, "Round4-2026.csv"),
     5: os.path.join(DATA_DIR, "Round5-2026.csv"),
 }
+
+# CSAB actual round data for the current counselling year.
+# Same structure as CURRENT_ROUND_DATA but keyed by CSAB special round number.
+# To add R2 when it drops: add  2: os.path.join(DATA_DIR, "CSAB_Round2-2026.csv")
+CSAB_CURRENT_ROUND_DATA: dict[int, str] = {
+    1: os.path.join(DATA_DIR, "CSAB_Round1-2026.csv"),
+}

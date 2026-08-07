@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
-from pipeline.config import PREDICT_YEAR, SOURCES, MODEL_DIR, CURRENT_ROUND_DATA
+from pipeline.config import PREDICT_YEAR, SOURCES, MODEL_DIR, CURRENT_ROUND_DATA, CSAB_CURRENT_ROUND_DATA
 from pipeline.predict import predict, load_all_actuals
 
 # Constants
@@ -27,11 +27,16 @@ QUOTAS = {
 CAT_COLOR = {"safe": "#27ae60", "match": "#f39c12", "reach": "#e74c3c"}
 CAT_ICON  = {"safe": "🟢", "match": "🟡", "reach": "🔴"}
 
-# Tuple form of CURRENT_ROUND_DATA is the cache key; adding a round auto-busts cache.
-_ROUND_DATA_KEY = tuple(sorted(CURRENT_ROUND_DATA.items()))
+# Tuple form of round-data dicts is the cache key; adding a round auto-busts cache.
+_ROUND_DATA_KEY      = tuple(sorted(CURRENT_ROUND_DATA.items()))
+_CSAB_ROUND_DATA_KEY = tuple(sorted(CSAB_CURRENT_ROUND_DATA.items()))
 
 @st.cache_data(show_spinner=False)
 def load_all_actuals_cached(round_data: tuple = _ROUND_DATA_KEY) -> dict[int, dict]:
+    return load_all_actuals(dict(round_data))
+
+@st.cache_data(show_spinner=False)
+def load_csab_actuals_cached(round_data: tuple = _CSAB_ROUND_DATA_KEY) -> dict[int, dict]:
     return load_all_actuals(dict(round_data))
 
 
@@ -966,7 +971,7 @@ if predict_btn or _auto_predict:
         )
         st.stop()
 
-    _actual_rounds = load_all_actuals_cached() if source == "josaa" else {}
+    _actual_rounds = load_all_actuals_cached() if source == "josaa" else load_csab_actuals_cached()
 
     with st.spinner("Computing predictions…"):
         df = predict(
